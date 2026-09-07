@@ -860,9 +860,26 @@ def _pos_created_today(status: str, sales_person_filter: str, page: int, per_pag
 # PURCHASE ORDER BULK UPDATE
 # ============================================
 
+def _bulk_update_scope():
+    """Which orders the current user's bulk update may touch.
+
+    None means the whole order book. That is the Administrator and the
+    Executive - the same two roles that already see every PO on the Sales
+    Dashboard, so this hands them nothing they could not already reach.
+
+    A salesperson gets their own id back instead. They keep the screen, and
+    the rows in their sheet that belong to a colleague come back reported and
+    unwritten. Sales has never been able to open another salesperson's PO;
+    arriving with it in a spreadsheet is not a way around that.
+    """
+    if current_user.is_admin() or current_user.is_executive():
+        return None
+    return current_user.id
+
+
 @admin_bp.route('/pos/bulk-update', methods=['GET', 'POST'])
 @login_required
-@role_required('admin')
+@role_required('admin', 'executive', 'sales')
 def po_bulk_update():
     """Upload a Text/Excel/Word sheet of PO changes and see what it would do.
 
@@ -875,10 +892,16 @@ def po_bulk_update():
     from src.services.po_bulk_update_service import (
         POBulkUpdateService, BulkUpdateError, SUPPORTED_EXTENSIONS, MAX_ROWS)
 
+    scope_user_id = _bulk_update_scope()
+
     context: Dict[str, Any] = {
         'extensions': SUPPORTED_EXTENSIONS,
         'max_rows': MAX_ROWS,
         'preview': None,
+        # Drives the "your own orders only" note on the page. A salesperson
+        # should be told the rule before they upload, not by a table of
+        # refused rows afterwards.
+        'scoped_to_own': scope_user_id is not None,
     }
 
     if request.method == 'POST':
@@ -888,7 +911,8 @@ def po_bulk_update():
             return render_template('admin/po_bulk_update.html', **context)
 
         try:
-            preview = POBulkUpdateService().prepare(upload.filename or '', upload.read())
+            preview = POBulkUpdateService().prepare(
+                upload.filename or '', upload.read(), scope_user_id)
         except BulkUpdateError as e:
             flash(str(e), 'danger')
             return render_template('admin/po_bulk_update.html', **context)
@@ -911,7 +935,7 @@ def po_bulk_update():
 
 @admin_bp.route('/pos/bulk-update/apply', methods=['POST'])
 @login_required
-@role_required('admin')
+@role_required('admin', 'executive', 'sales')
 def po_bulk_update_apply():
     """Commit the plan the preview produced."""
     from src.services.po_bulk_update_service import POBulkUpdateService
@@ -932,7 +956,7 @@ def po_bulk_update_apply():
         flash('Nothing to update - no valid changes were selected.', 'warning')
         return redirect(url_for('admin.po_bulk_update'))
 
-    result = POBulkUpdateService().apply(rows, current_user.id)
+    result = POBulkUpdateService().apply(rows, current_user.id, _bulk_update_scope())
 
     if result['applied']:
         flash(f"{result['applied']} purchase order(s) updated - "
@@ -947,12 +971,20 @@ def po_bulk_update_apply():
               'routed to the installation team: '
               + ', '.join(result['routed'][:10])
               + ('...' if len(result['routed']) > 10 else ''), 'info')
+    if result.get('refused'):
+        flash(f"{result['refused']} purchase order(s) were not written because "
+              'they were raised by another salesperson.', 'warning')
     for failure in result['failed']:
         flash(f"Row {failure['row_no']} ({failure['po_number']}) failed: {failure['error']}", 'danger')
     if not result['applied'] and not result['failed']:
         flash('No changes were applied.', 'warning')
 
-    return redirect(url_for('admin.pos_list'))
+    # The admin PO list is admin/executive only, so a salesperson finishing a
+    # bulk update would land on an unauthorised page. Send them where their
+    # orders actually are.
+    if current_user.is_admin() or current_user.is_executive():
+        return redirect(url_for('admin.pos_list'))
+    return redirect(url_for('sales.dashboard'))
 
 
 @admin_bp.route('/pos/add', methods=['GET', 'POST'])

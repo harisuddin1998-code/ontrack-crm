@@ -97,6 +97,20 @@
                                 email and raises the security briefing.</p>
                         </div>
                     </div>
+
+                    {# Stated before the upload, not after. A salesperson who
+                       learns the rule from a table of refused rows has already
+                       prepared the wrong sheet. #}
+                    {% if scoped_to_own %}
+                    <div class="o_bulk_rule o_bulk_rule_warn">
+                        <i data-lucide="lock"></i>
+                        <div>
+                            <strong>Your own orders only</strong>
+                            <p>Rows matching a PO raised by another salesperson are reported
+                                back and left unchanged.</p>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <div class="o_bulk_fields">
@@ -158,6 +172,13 @@
             <div class="o_stat_value">{{ s['duplicate']|count_fmt }}</div>
             <div class="o_stat_hint">repeated in the file</div>
         </div>
+        {% if scoped_to_own %}
+        <div class="o_stat_card o_stat_rose">
+            <span class="o_stat_label"><i data-lucide="lock"></i> Not Yours</span>
+            <div class="o_stat_value">{{ s['forbidden']|count_fmt }}</div>
+            <div class="o_stat_hint">raised by another salesperson</div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="o_alert o_alert_info o_bulk_columns">
@@ -206,6 +227,8 @@
                         <span class="o_badge o_badge_warning">AMBIGUOUS</span>
                         {% elif r.outcome == 'unmatched' %}
                         <span class="o_badge o_badge_warning">NOT FOUND</span>
+                        {% elif r.outcome == 'forbidden' %}
+                        <span class="o_badge o_badge_danger">NOT YOURS</span>
                         {% else %}
                         <span class="o_badge o_badge_danger">INVALID</span>
                         {% endif %}
@@ -239,7 +262,8 @@
             Apply {{ s['update']|count_fmt }} Update(s)
         </button>
         <span class="o_bulk_muted">
-            Rows above marked invalid, not found, ambiguous or duplicate are skipped.
+            Rows above marked invalid, not found, ambiguous{% if scoped_to_own %}, not
+            yours{% endif %} or duplicate are skipped.
         </span>
     </form>
     {% else %}

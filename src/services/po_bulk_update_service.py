@@ -379,12 +379,19 @@ def _same(current: Any, new: Any) -> bool:
 class POBulkUpdateService:
     """Reads an update file, works out what it would do, then does it."""
 
-    def prepare(self, filename: str, data: bytes) -> Dict[str, Any]:
+    def prepare(self, filename: str, data: bytes,
+                scope_user_id: Optional[int] = None) -> Dict[str, Any]:
         """Read and validate a file without writing anything.
 
         Returns the full plan: a verdict per row, the columns that were
         recognised and the ones that were not, and the counts to summarise
         it with. `apply()` takes the `rows` from this straight back.
+
+        `scope_user_id` limits the run to the orders that user raised. It is
+        how a salesperson gets this screen without getting the whole order
+        book with it: they see their own POs update and everyone else's
+        reported back untouched. Left as None - for the Administrator and the
+        Executive - every PO in the file is in scope.
         """
         extension = (filename.rsplit('.', 1)[-1] if '.' in filename else '').lower()
         reader = READERS.get(extension)
@@ -409,7 +416,7 @@ class POBulkUpdateService:
                 'The file has nothing to update - only the identifying column '
                 'was recognised. Add at least one field column, e.g. "Status".')
 
-        rows = self._evaluate(raw_rows, headers, key_field, field_map)
+        rows = self._evaluate(raw_rows, headers, key_field, field_map, scope_user_id)
 
         return {
             'filename': filename,
@@ -457,7 +464,8 @@ class POBulkUpdateService:
         return key_field, field_map, ignored
 
     def _evaluate(self, raw_rows, headers, key_field: str,
-                  field_map: Dict[int, str]) -> List[Dict[str, Any]]:
+                  field_map: Dict[int, str],
+                  scope_user_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Match and validate every row against the database."""
         results: List[Dict[str, Any]] = []
         seen_keys: Dict[str, int] = {}
@@ -506,6 +514,21 @@ class POBulkUpdateService:
                 continue
 
             po = matches[0]
+
+            # Somebody else's order. Reported as its own outcome rather than
+            # folded into 'unmatched': the PO does exist, and telling a
+            # salesperson it was not found would send them hunting for a typo
+            # that is not there. Named, because the row is theirs to explain
+            # to whoever prepared the sheet.
+            if scope_user_id is not None and po.sales_person_id != scope_user_id:
+                row['po_number'] = po.po_number
+                row['outcome'] = 'forbidden'
+                row['errors'].append(
+                    f'{po.po_number} was raised by another salesperson - you '
+                    'can only bulk-update the orders you raised')
+                results.append(row)
+                continue
+
             row['po_id'] = po.id
             row['po_number'] = po.po_number
 
@@ -546,13 +569,15 @@ class POBulkUpdateService:
     @staticmethod
     def _summarise(rows: Sequence[Dict[str, Any]]) -> Dict[str, int]:
         counts = {'total': len(rows), 'update': 0, 'unchanged': 0,
-                  'invalid': 0, 'unmatched': 0, 'ambiguous': 0, 'duplicate': 0}
+                  'invalid': 0, 'unmatched': 0, 'ambiguous': 0, 'duplicate': 0,
+                  'forbidden': 0}
         for row in rows:
             counts[row['outcome']] = counts.get(row['outcome'], 0) + 1
         counts['fields'] = sum(len(r['changes']) for r in rows)
         return counts
 
-    def apply(self, rows: Sequence[Dict[str, Any]], user_id: int) -> Dict[str, Any]:
+    def apply(self, rows: Sequence[Dict[str, Any]], user_id: int,
+              scope_user_id: Optional[int] = None) -> Dict[str, Any]:
         """Write the rows the preview marked as updates. Nothing else.
 
         Each PO goes through POService.update_po rather than being written
@@ -565,6 +590,11 @@ class POBulkUpdateService:
         installation team, the same way a newly-raised one is. A sheet that
         fills in a customer, a location and a rate is handing over a job;
         without this the row changed and nobody was told.
+
+        `scope_user_id` is checked again here, against the database, and not
+        taken on trust from the plan. The plan went out to the browser as a
+        hidden field and came back; a preview-only restriction would be a
+        restriction on the screen and nowhere else.
         """
         from src.services.po_service import POService
 
@@ -573,10 +603,21 @@ class POBulkUpdateService:
         fields_written = 0
         completed: List[str] = []
         routed: List[Any] = []
+        refused = 0
 
         for row in rows:
             if row.get('outcome') != 'update' or not row.get('po_id') or not row.get('changes'):
                 continue
+
+            if scope_user_id is not None:
+                owner = PurchaseOrder.query.get(int(row['po_id']))
+                if owner is None or owner.sales_person_id != scope_user_id:
+                    logger.warning(
+                        f"Bulk PO update: user {user_id} submitted PO "
+                        f"{row.get('po_id')}, which they did not raise - refused")
+                    refused += 1
+                    continue
+
             changes = dict(row['changes'])
             try:
                 updated = po_service.update_po(int(row['po_id']), changes, user_id)
@@ -596,10 +637,10 @@ class POBulkUpdateService:
 
         logger.info(f"Bulk PO update by user {user_id}: {applied} updated, "
                     f"{fields_written} fields written, {len(failed)} failed, "
-                    f"{len(routed_numbers)} routed to installation")
+                    f"{refused} refused, {len(routed_numbers)} routed to installation")
         return {'applied': applied, 'fields': fields_written,
                 'failed': failed, 'completed': completed,
-                'routed': routed_numbers}
+                'routed': routed_numbers, 'refused': refused}
 
     @staticmethod
     def _route_to_installation(orders: Sequence[Any]) -> List[str]:

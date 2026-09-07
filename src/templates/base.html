@@ -664,6 +664,10 @@
                         class="o_menu_item {% if request.endpoint == 'sales.new_po' %}active{% endif %}">
                         <i data-lucide="plus-circle"></i> New PO
                     </a>
+                    <a href="{{ url_for('admin.po_bulk_update') }}"
+                        class="o_menu_item {% if request.endpoint and request.endpoint.startswith('admin.po_bulk_update') %}active{% endif %}">
+                        <i data-lucide="upload"></i> Bulk Update
+                    </a>
                 </div>
             </div>
             {% endif %}
@@ -690,6 +694,10 @@
                     <a href="{{ url_for('sales.dashboard') }}"
                         class="o_menu_item {% if request.endpoint == 'sales.dashboard' %}active{% endif %}">
                         <i data-lucide="trending-up"></i> Sales Dashboard
+                    </a>
+                    <a href="{{ url_for('admin.po_bulk_update') }}"
+                        class="o_menu_item {% if request.endpoint and request.endpoint.startswith('admin.po_bulk_update') %}active{% endif %}">
+                        <i data-lucide="upload"></i> Bulk Update
                     </a>
                 </div>
             </div>

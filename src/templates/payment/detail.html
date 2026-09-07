@@ -1,0 +1,112 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-credit-card" style="color: var(--odoo-primary);"></i> Payment Detail - {{ payment.purchase_order.po_number if payment.purchase_order else '' }}</h1>
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">{{ payment.purchase_order.owner_name if payment.purchase_order else '' }}</h2>
+            <p class="o_form_subtitle">Status: {{ payment.payment_status }} | Due: {{ payment.payment_due_date.strftime('%d/%m/%Y') if payment.payment_due_date else '-' }}</p>
+        </div>
+        <div class="o_form_body">
+            <div class="o_dashboard_cards" style="grid-template-columns: repeat(3, 1fr);">
+                {% if current_user.is_admin() %}
+                <a href="#payment-history" class="o_dashboard_card o_card_primary" style="text-decoration: none;"><div class="o_card_header">Total Amount</div><div class="o_card_value">PKR {{ payment.total_amount|int }}</div></a>
+                {% else %}
+                <div class="o_dashboard_card o_card_primary"><div class="o_card_header">Total Amount</div><div class="o_card_value">PKR {{ payment.total_amount|int }}</div></div>
+                {% endif %}
+                {% if current_user.is_admin() %}
+                <a href="#payment-history" class="o_dashboard_card o_card_success" style="text-decoration: none;"><div class="o_card_header">Received</div><div class="o_card_value">PKR {{ payment.amount_received|int }}</div></a>
+                {% else %}
+                <div class="o_dashboard_card o_card_success"><div class="o_card_header">Received</div><div class="o_card_value">PKR {{ payment.amount_received|int }}</div></div>
+                {% endif %}
+                {% if current_user.is_admin() %}
+                <a href="#payment-history" class="o_dashboard_card o_card_warning" style="text-decoration: none;"><div class="o_card_header">Remaining</div><div class="o_card_value">PKR {{ payment.remaining_amount|int }}</div></a>
+                {% else %}
+                <div class="o_dashboard_card o_card_warning"><div class="o_card_header">Remaining</div><div class="o_card_value">PKR {{ payment.remaining_amount|int }}</div></div>
+                {% endif %}
+            </div>
+            <form method="POST" action="{{ url_for('payment.payment_detail', payment_id=payment.id) }}" enctype="multipart/form-data" id="addPaymentForm" onsubmit="return validatePaymentForm()">
+                {{ form.hidden_tag() }}
+                <input type="hidden" name="action" value="add_payment">
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Amount (PKR)</label>
+                        {{ form.amount(class="o_field_widget", placeholder="Enter amount") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Payment Method</label>
+                        {{ form.payment_method(class="o_field_widget", id="paymentMethodSelect", onchange="togglePaymentFields()") }}
+                    </div>
+                </div>
+                <div class="o_form_group" id="chequeFieldsGroup" style="display: none;">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Cheque Number</label>
+                        {{ form.cheque_number(class="o_field_widget", placeholder="Enter cheque number") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Bank Name</label>
+                        {{ form.bank_name(class="o_field_widget", placeholder="Enter bank name") }}
+                    </div>
+                </div>
+                <div class="o_form_group" id="onlineFieldsGroup" style="display: none;">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Transaction ID</label>
+                        {{ form.transaction_id(class="o_field_widget", placeholder="Enter transaction ID") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Proof of Payment (JPG/PNG) <span style="color:#dc2626;">*</span></label>
+                        <input type="file" name="proof_file" id="proofFileInput" class="o_field_widget" accept=".jpg,.jpeg,.png">
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group" style="grid-column: span 2;">
+                        <label class="o_field_label">Notes</label>
+                        {{ form.notes(class="o_field_widget", rows="3") }}
+                    </div>
+                </div>
+                <div class="o_action_bar">
+                    <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="Add Payment" aria-label="Add Payment"><i class="fas fa-floppy-disk"></i></button>
+                </div>
+            </form>
+            <script>
+                function togglePaymentFields() {
+                    var method = document.getElementById('paymentMethodSelect').value;
+                    document.getElementById('chequeFieldsGroup').style.display = method === 'CHEQUE' ? 'flex' : 'none';
+                    document.getElementById('onlineFieldsGroup').style.display = method === 'ONLINE' ? 'flex' : 'none';
+                }
+                function validatePaymentForm() {
+                    var method = document.getElementById('paymentMethodSelect').value;
+                    var proofInput = document.getElementById('proofFileInput');
+                    if (method === 'ONLINE' && !proofInput.files.length) {
+                        alert('Proof of payment is required for online payments.');
+                        return false;
+                    }
+                    return true;
+                }
+                document.addEventListener('DOMContentLoaded', togglePaymentFields);
+            </script>
+            
+            <h3 style="margin-top: 20px;">Payment History</h3>
+            <div class="o_list_view" id="payment-history">
+                <table class="o_list_table">
+                    <thead class="o_list_header">
+                        <tr><th>Date</th><th>Amount</th><th>Action</th><th>User</th><th>Details</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for h in history %}
+                        <tr class="o_list_record">
+                            <td>{{ h.created_at.strftime('%d/%m/%Y %H:%M') if h.created_at else '-' }}</td>
+                            <td>PKR {{ h.amount|int }}</td>
+                            <td>{{ h.action }}</td>
+                            <td>{{ h.user_name or '-' }}</td>
+                            <td>{{ h.details or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-flag" style="color: var(--odoo-primary);"></i>
+        Flag Vehicle for Removal
+    </h1>
+    
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Vehicle Flagging</h2>
+            <p class="o_form_subtitle">Mark a vehicle for removal, retention, or transfer</p>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="{{ url_for('removal.flag_vehicle') }}">
+                {{ form.hidden_tag() }}
+                
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.registration_no.label }}</label>
+                        {{ form.registration_no(class="o_field_widget", placeholder="Enter registration number") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.flag_type.label }}</label>
+                        {{ form.flag_type(class="o_field_widget") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.priority.label }}</label>
+                        {{ form.priority(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.flag_reason.label }}</label>
+                        {{ form.flag_reason(class="o_field_widget", rows="3", placeholder="Enter reason for flagging") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.customer_name.label }}</label>
+                        {{ form.customer_name(class="o_field_widget", placeholder="Customer name") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.customer_contact.label }}</label>
+                        {{ form.customer_contact(class="o_field_widget", placeholder="Customer contact") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.make.label }}</label>
+                        {{ form.make(class="o_field_widget", placeholder="Manufacturer") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.model.label }}</label>
+                        {{ form.model(class="o_field_widget", placeholder="Brand") }}
+                    </div>
+                </div>
+                
+                <div class="o_action_bar">
+                    <a href="{{ url_for('removal.dashboard') }}" class="o_button o_button_secondary">
+                        <i class="fas fa-arrow-left"></i> Cancel
+                    </a>
+                    <button type="submit" class="o_button">
+                        <i class="fas fa-flag"></i> Flag Vehicle
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block content %}
+{# Historical REDO activity, read only.
+
+   The wallboard's History action used to open the REDO entry form, which is
+   the same screen its Perform-activity action opens - so the two buttons on
+   every row did the same thing. This page answers the question History asks
+   and nothing else: what has already been done to this vehicle, by whom, and
+   how it ended. There is no entry form on it; the button to start new work is
+   in the header, where it reads as a separate action. #}
+<style>
+    .rh-lucide { width: 16px; height: 16px; display: inline-block; vertical-align: text-bottom; }
+
+    .rh-card {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+        margin-bottom: 20px;
+    }
+
+    .rh-card-header {
+        padding: 12px 20px;
+        font-weight: 700;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #0f172a;
+    }
+
+    .rh-search {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        padding: 18px 20px;
+    }
+
+    .rh-search .rh-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .rh-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #475569;
+    }
+
+    .rh-input,
+    .rh-select {
+        padding: 8px 12px;
+        font-size: 13px;
+        border-radius: 6px;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #0f172a;
+    }
+
+    .rh-input:focus,
+    .rh-select:focus {
+        border-color: #6B8DD6;
+        background: #ffffff;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(107, 141, 214, 0.15);
+    }
+
+    .rh-input {
+        min-width: 260px;
+    }
+
+    /* Remarks are free text and regularly run long. Capped here so one
+       verbose entry cannot stretch the row past the width of the page; the
+       full text is on the cell's title. */
+    .rh-remarks {
+        max-width: 320px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .rh-nowrap {
+        white-space: nowrap;
+    }
+
+    .rh-muted {
+        color: var(--odoo-text-muted);
+    }
+</style>
+
+<div class="o_container_fluid">
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="history" class="rh-lucide"
+                    style="width: 26px; height: 26px; color: var(--odoo-primary);"></i>
+                Historical REDO Activity
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Completed and in-flight service records, most recent first
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <a href="{{ url_for('redo.dashboard') }}" class="pastel-btn-secondary"
+                style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left" class="rh-lucide"></i> REDO Activities
+            </a>
+            <a href="{{ url_for('redo.new') }}" class="pastel-btn-primary"
+                style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="wrench" class="rh-lucide"></i> New REDO Activity
+            </a>
+        </div>
+    </div>
+
+    <div class="rh-card">
+        <form method="GET" action="{{ url_for('redo.redo_records') }}" class="rh-search">
+            <div class="rh-field">
+                <label class="rh-label" for="searchBy">Search By</label>
+                <select class="rh-select" id="searchBy" name="search_by">
+                    {% for value, label in search_fields %}
+                    <option value="{{ value }}" {% if search_by==value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="rh-field">
+                <label class="rh-label" for="searchTerm">Search For</label>
+                <input class="rh-input" id="searchTerm" name="search_term" value="{{ search_term }}"
+                    placeholder="Enter all or part of the value">
+            </div>
+            <button type="submit" class="pastel-btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="search" class="rh-lucide"></i> Search
+            </button>
+            {% if search_term %}
+            <a href="{{ url_for('redo.redo_records') }}" class="pastel-btn-secondary"
+                style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="rotate-ccw" class="rh-lucide"></i> Clear
+            </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="rh-card">
+        <div class="rh-card-header">
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="list" class="rh-lucide" style="color: var(--odoo-primary);"></i>
+                {% if search_term %}Records matching "{{ search_term }}"{% else %}All REDO Records{% endif %}
+            </span>
+            <span class="o_badge"
+                style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; font-size: 13px; font-weight: 700;">
+                {{ records|length|count_fmt }} shown{% if records|length == result_limit %} (most recent {{ result_limit
+                }}){% endif %}
+            </span>
+        </div>
+        <div class="o_list_view">
+            <table class="o_list_table">
+                <thead class="o_list_header">
+                    <tr>
+                        <th>REDO ID</th>
+                        <th>Registration</th>
+                        <th>Customer</th>
+                        <th>Sales Person</th>
+                        <th>Activity</th>
+                        <th>Raised</th>
+                        <th>Completed</th>
+                        <th>Technician</th>
+                        <th>Tested By</th>
+                        <th>Device Change</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr class="o_list_record">
+                        <td class="rh-nowrap"><strong style="color: var(--odoo-primary);">{{ r.redo_number or ('REDO-' ~
+                                r.id) }}</strong></td>
+                        <td><strong>{{ r.registration_no }}</strong></td>
+                        <td>{{ r.customer_name or 'Customer not recorded' }}</td>
+                        {# Read off the vehicle's Purchase Order - see
+                           _attach_sales_persons in src/web/redo.py. #}
+                        <td>{% if r.sale_person %}{{ r.sale_person }}{% else %}<span class="rh-muted">No PO on
+                                record</span>{% endif %}</td>
+                        <td><span class="o_badge" style="background:#f1f5f9; color:#475569;">{{ r.activity_type or 'REDO'
+                                }}</span></td>
+                        <td class="rh-nowrap">{{ r.created_at.strftime('%d %b %Y, %H:%M') if r.created_at else 'N/A' }}
+                        </td>
+                        <td class="rh-nowrap">
+                            {% if r.completed_at %}{{ r.completed_at.strftime('%d %b %Y, %H:%M') }}{% else %}<span
+                                class="rh-muted">-</span>{% endif %}
+                        </td>
+                        <td>{{ r.technician or (r.assigned_to_user.name if r.assigned_to_user else 'Unassigned') }}</td>
+                        <td>{{ r.tested_by or '-' }}</td>
+                        <td>
+                            {% if r.device_change_reason %}
+                            <span class="o_badge o_badge_warning">{{ r.device_change_reason }}</span>
+                            {% else %}<span class="rh-muted">-</span>{% endif %}
+                        </td>
+                        <td>
+                            <span
+                                class="o_badge {% if r.status == 'COMPLETED' %}o_badge_success{% elif r.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                                {{ r.status.replace('_', ' ') }}
+                            </span>
+                        </td>
+                        <td class="rh-remarks" title="{{ r.remarks or r.completion_notes or '' }}">
+                            {{ r.remarks or r.completion_notes or '-' }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="12" style="text-align: center; color: var(--odoo-text-light); padding: 34px;">
+                            {% if search_term %}
+                            No REDO records match that search.
+                            <a href="{{ url_for('redo.redo_records') }}">Show all</a>
+                            {% else %}
+                            No REDO records on file yet.
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

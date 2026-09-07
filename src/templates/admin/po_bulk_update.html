@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title" style="display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="upload" style="color: var(--odoo-primary);"></i> Bulk Update Purchase Orders
+    </h1>
+
+    {# Two steps on one page: upload, then confirm. The upload card stays
+       visible above the preview so a file that turned out to be wrong can be
+       replaced without going back. #}
+    <div class="o_bulk_layout">
+        <div class="o_form_view">
+            <div class="o_form_header">
+                <h2 class="o_form_title">Upload a sheet of changes</h2>
+                <p class="o_form_subtitle">Nothing is written until you have seen what it would do and
+                    confirmed it.</p>
+            </div>
+            <div class="o_form_body">
+                <form method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="o_field_group">
+                        <label class="o_field_label" for="bulk-file">Update file</label>
+                        {# `accept` is built from the same tuple the server
+                           validates against, so the picker and the check
+                           cannot disagree. #}
+                        <input type="file" name="file" id="bulk-file" class="o_field_widget" required
+                            accept="{% for ext in extensions %}.{{ ext }}{% if not loop.last %},{% endif %}{% endfor %}">
+                    </div>
+
+                    <p class="o_bulk_meta">
+                        {% for ext in extensions %}<code>.{{ ext }}</code>{% if not loop.last %} {% endif %}{% endfor %}
+                        &middot; up to {{ max_rows|count_fmt }} rows
+                    </p>
+
+                    <div class="o_bulk_actions">
+                        <button type="submit" class="pastel-btn-primary">
+                            <i data-lucide="search-check" class="lucide-icon"></i> Check File
+                        </button>
+                        <a href="{{ url_for('admin.pos_list') }}" class="pastel-btn-secondary">
+                            <i data-lucide="arrow-left" class="lucide-icon"></i> Back to POs
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="o_form_view">
+            <div class="o_form_header">
+                <h2 class="o_form_title">How the file should look</h2>
+                <p class="o_form_subtitle">A header row, then one row per purchase order. Word files are read
+                    from the first table in the document.</p>
+            </div>
+            <div class="o_form_body">
+                {# Four rules, each its own block. Set as a paragraph they read
+                   as background text; the one that matters most - a blank cell
+                   never erases anything - has to be impossible to skim past. #}
+                <div class="o_bulk_rules">
+                    <div class="o_bulk_rule">
+                        <i data-lucide="key-round"></i>
+                        <div>
+                            <strong>Identify each order</strong>
+                            <p>One column must be <b>PO Number</b> (matched exactly) or <b>Reg No</b>.</p>
+                        </div>
+                    </div>
+
+                    <div class="o_bulk_rule">
+                        <i data-lucide="shield-check"></i>
+                        <div>
+                            <strong>Empty cells are left alone</strong>
+                            <p>A blank never erases a value that is already recorded, and no column
+                                below is required &mdash; bring whichever ones your sheet has.</p>
+                        </div>
+                    </div>
+
+                    <div class="o_bulk_rule">
+                        <i data-lucide="send"></i>
+                        <div>
+                            <strong>Updated orders reach the installers</strong>
+                            <p>Any order still PENDING or IN_PROGRESS after the update is routed to
+                                the installation team.</p>
+                        </div>
+                    </div>
+
+                    <div class="o_bulk_rule">
+                        <i data-lucide="list-checks"></i>
+                        <div>
+                            <strong>Status must be a known one</strong>
+                            <p>PENDING, IN_PROGRESS, COMPLETED or CANCELLED.</p>
+                        </div>
+                    </div>
+
+                    <div class="o_bulk_rule o_bulk_rule_warn">
+                        <i data-lucide="mail-check"></i>
+                        <div>
+                            <strong>Completing a PO is not just a status</strong>
+                            <p>It does everything completing it on the form does &mdash; sends the completion
+                                email and raises the security briefing.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="o_bulk_fields">
+                    <span class="o_bulk_fields_label">Columns you can update</span>
+                    <div class="o_bulk_chips">
+                        {% for field in ['Status', 'Technician', 'IMEI', 'SIM', 'Device Type',
+                        'Device Location', 'Scheduled Date', 'City', 'Manufacturer', 'Brand',
+                        'Year / Model', 'Color', 'Transmission', 'Power CC',
+                        'Engine No', 'Chassis No', 'Customer Name',
+                        'Contact Number', 'Driver Contact', 'Sales Person',
+                        'Vehicle / Installation Location', 'Existing Customer Name',
+                        'Existing Vehicle Number', 'Tested By', 'Fuel', 'Rates', 'AMC',
+                        'Remarks'] %}
+                        <span class="o_bulk_chip">{{ field }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if preview %}
+    {# Subscripted, not dotted. `s.update` resolves to dict.update - the
+       built-in method - not the count, so the card and the button both read
+       zero while the rows below them said WILL UPDATE. Every other key here
+       happens not to collide, but they are written the same way so the next
+       one added cannot reintroduce this. #}
+    {% set s = preview['summary'] %}
+    <div class="o_section_header">
+        <h3><i data-lucide="list-checks"></i> What this file would do</h3>
+        <span class="o_bulk_filename"><i data-lucide="file-text"></i> {{ preview.filename }}</span>
+    </div>
+
+    {# Outcome counts. Not links - these describe one uploaded file, not
+       records in the database. #}
+    <div class="o_kanban_stats o_kanban_group">
+        <div class="o_stat_card o_stat_green">
+            <span class="o_stat_label"><i data-lucide="check-circle"></i> Will Update</span>
+            <div class="o_stat_value">{{ s['update']|count_fmt }}</div>
+            <div class="o_stat_hint">{{ s['fields']|count_fmt }} field(s) to write</div>
+        </div>
+        <div class="o_stat_card o_stat_sky">
+            <span class="o_stat_label"><i data-lucide="equal"></i> No Change</span>
+            <div class="o_stat_value">{{ s['unchanged']|count_fmt }}</div>
+            <div class="o_stat_hint">already match the file</div>
+        </div>
+        <div class="o_stat_card o_stat_rose">
+            <span class="o_stat_label"><i data-lucide="alert-triangle"></i> Invalid</span>
+            <div class="o_stat_value">{{ s['invalid']|count_fmt }}</div>
+            <div class="o_stat_hint">values the system rejected</div>
+        </div>
+        <div class="o_stat_card o_stat_amber">
+            <span class="o_stat_label"><i data-lucide="search-x"></i> Unmatched</span>
+            <div class="o_stat_value">{{ (s['unmatched'] + s['ambiguous'])|count_fmt }}</div>
+            <div class="o_stat_hint">no single PO found</div>
+        </div>
+        <div class="o_stat_card o_stat_purple">
+            <span class="o_stat_label"><i data-lucide="copy"></i> Duplicates</span>
+            <div class="o_stat_value">{{ s['duplicate']|count_fmt }}</div>
+            <div class="o_stat_hint">repeated in the file</div>
+        </div>
+    </div>
+
+    <div class="o_alert o_alert_info o_bulk_columns">
+        <i data-lucide="columns-3"></i>
+        <div>
+            <div>Matching on
+                <strong>{{ 'PO Number' if preview.key_field == 'po_number' else 'Registration No' }}</strong>.
+                Recognised columns:
+                {% for c in preview.columns %}<code>{{ c }}</code>{% if not loop.last %}, {% endif %}{% else
+                %}none{% endfor %}.
+            </div>
+            {% if preview.ignored_columns %}
+            <div style="margin-top: 6px;">
+                <strong>Ignored</strong> &mdash; not a field this update can write, so check the spelling:
+                {% for c in preview.ignored_columns %}<code>{{ c }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="o_list_view o_bulk_preview">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th style="width: 64px;">Row</th>
+                    <th style="width: 160px;">Identifier</th>
+                    <th style="width: 160px;">Purchase Order</th>
+                    <th style="width: 140px;">Outcome</th>
+                    <th>Changes / Problem</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in preview.rows %}
+                <tr class="o_list_record">
+                    <td>{{ r.row_no }}</td>
+                    <td><strong>{{ r.key or '—' }}</strong></td>
+                    <td>{{ r.po_number or '—' }}</td>
+                    <td>
+                        {% if r.outcome == 'update' %}
+                        <span class="o_badge o_badge_success">WILL UPDATE</span>
+                        {% elif r.outcome == 'unchanged' %}
+                        <span class="o_badge o_badge_secondary">NO CHANGE</span>
+                        {% elif r.outcome == 'duplicate' %}
+                        <span class="o_badge o_badge_info">DUPLICATE</span>
+                        {% elif r.outcome == 'ambiguous' %}
+                        <span class="o_badge o_badge_warning">AMBIGUOUS</span>
+                        {% elif r.outcome == 'unmatched' %}
+                        <span class="o_badge o_badge_warning">NOT FOUND</span>
+                        {% else %}
+                        <span class="o_badge o_badge_danger">INVALID</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.errors %}
+                        <span class="o_bulk_error">{{ r.errors | join('; ') }}</span>
+                        {% elif r.changes %}
+                        <div class="o_bulk_changes">
+                            {% for field, value in r.changes.items() %}
+                            <span class="o_bulk_change"><code>{{ field }}</code>
+                                <i data-lucide="arrow-right"></i> <strong>{{ value }}</strong></span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <span class="o_bulk_muted">nothing to write</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if s['update'] %}
+    <form method="POST" action="{{ url_for('admin.po_bulk_update_apply') }}" class="o_bulk_apply">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="plan" value="{{ plan_json }}">
+        <button type="submit" class="pastel-btn-primary">
+            <i data-lucide="save" class="lucide-icon"></i>
+            Apply {{ s['update']|count_fmt }} Update(s)
+        </button>
+        <span class="o_bulk_muted">
+            Rows above marked invalid, not found, ambiguous or duplicate are skipped.
+        </span>
+    </form>
+    {% else %}
+    <div class="o_alert o_alert_warning" style="margin-top: 20px;">
+        <i data-lucide="alert-triangle"></i> There is nothing to apply from this file.
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+<style>
+    /* Upload and instructions sit side by side while there is room for both:
+       the upload card is short and the instructions are tall, so stacking
+       them pushed the actual control off the top of a laptop screen. */
+    .o_bulk_layout {
+        display: grid;
+        grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+        gap: 20px;
+        align-items: start;
+        margin-bottom: 4px;
+    }
+
+    .o_bulk_layout .o_form_view {
+        margin-bottom: 0;
+    }
+
+    .o_bulk_meta {
+        margin: 10px 0 0;
+        font-size: 11.5px;
+        color: var(--odoo-text-muted);
+    }
+
+    .o_bulk_meta code {
+        background: var(--odoo-primary-soft);
+        color: var(--odoo-primary-dark);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 11px;
+    }
+
+    .o_bulk_actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--odoo-border);
+    }
+
+    /* Two columns of rules on a wide screen, one on a narrow one. Each rule
+       is a block rather than a bullet so the heading carries it at a glance. */
+    .o_bulk_rules {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px 24px;
+    }
+
+    .o_bulk_rule {
+        display: flex;
+        gap: 11px;
+        align-items: flex-start;
+    }
+
+    .o_bulk_rule svg,
+    .o_bulk_rule i {
+        flex: none;
+        width: 17px;
+        height: 17px;
+        margin-top: 1px;
+        color: var(--odoo-primary);
+    }
+
+    .o_bulk_rule strong {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--odoo-text);
+        margin-bottom: 2px;
+    }
+
+    .o_bulk_rule p {
+        margin: 0;
+        font-size: 12.5px;
+        line-height: 1.55;
+        color: var(--odoo-text-light);
+    }
+
+    .o_bulk_rule b {
+        color: var(--odoo-text);
+        font-weight: 600;
+    }
+
+    /* The consequence people don't expect from a spreadsheet upload. */
+    .o_bulk_rule_warn svg,
+    .o_bulk_rule_warn i {
+        color: #C2410C;
+    }
+
+    .o_bulk_fields {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--odoo-border);
+    }
+
+    .o_bulk_fields_label {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: var(--odoo-text-muted);
+        margin-bottom: 10px;
+    }
+
+    /* Chips, not a comma-separated sentence. Twenty-two field names set as
+       prose is a wall nobody reads; as chips the reader can find the one
+       they are looking for. */
+    .o_bulk_chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .o_bulk_chip {
+        background: var(--odoo-primary-soft);
+        color: var(--odoo-primary-dark);
+        border-radius: 6px;
+        padding: 3px 9px;
+        font-size: 11.5px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .o_bulk_filename {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--odoo-text-light);
+    }
+
+    .o_bulk_filename svg,
+    .o_bulk_filename i {
+        width: 14px;
+        height: 14px;
+    }
+
+    .o_bulk_columns {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 16px 0;
+        line-height: 1.6;
+    }
+
+    .o_bulk_columns svg,
+    .o_bulk_columns i {
+        flex: none;
+        margin-top: 2px;
+    }
+
+    /* Each change on its own line: a row that writes five fields is a list,
+       and running them together made the long ones unreadable. */
+    .o_bulk_changes {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .o_bulk_change {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+    }
+
+    .o_bulk_change svg,
+    .o_bulk_change i {
+        width: 12px;
+        height: 12px;
+        color: var(--odoo-text-muted);
+    }
+
+    /* The list table right-aligns and uppercases its last column, because
+       that column is normally the row's action buttons. Here it is prose -
+       what will be written, or why the row was rejected - and prose set in
+       caps and ragged-left is close to unreadable. The `!important` matches
+       the upstream rule's.
+
+       Scoped to the one column rather than using the existing
+       `.o_list_view.no-uppercase` modifier: that exempts the whole table
+       including its header, and the identifiers in the other columns are
+       genuinely uppercase data that should keep the app's convention. */
+    .o_bulk_preview .o_list_header th:last-child,
+    .o_bulk_preview .o_list_record td:last-child {
+        text-align: left !important;
+    }
+
+    .o_bulk_preview .o_list_record td:last-child {
+        text-transform: none;
+        white-space: normal;
+    }
+
+    .o_bulk_error {
+        font-size: 12.5px;
+        color: #BE185D;
+    }
+
+    .o_bulk_muted {
+        font-size: 12.5px;
+        color: var(--odoo-text-muted);
+    }
+
+    .o_bulk_apply {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 20px;
+    }
+
+    @media (max-width: 1100px) {
+        .o_bulk_layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}

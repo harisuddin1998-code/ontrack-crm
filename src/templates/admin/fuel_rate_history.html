@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-history" style="color: var(--odoo-primary);"></i>
+        Fuel Rate History
+        <span style="font-size: 14px; font-weight: normal; color: var(--odoo-text-light); margin-left: 10px;">
+            Last {{ days }} days
+        </span>
+    </h1>
+    
+    <!-- Current Rate Card -->
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(3, 1fr);">
+        {% if current_user.is_admin() %}
+        <a href="#fuel-rate-history-table" class="o_dashboard_card o_card_primary" style="text-decoration: none;">
+            <div class="o_card_header">Current Rate</div>
+            <div class="o_card_value" style="font-size: 28px;">PKR {{ current_rate }}</div>
+            <div class="o_card_unit">Per Liter</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_primary">
+            <div class="o_card_header">Current Rate</div>
+            <div class="o_card_value" style="font-size: 28px;">PKR {{ current_rate }}</div>
+            <div class="o_card_unit">Per Liter</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="#fuel-rate-history-table" class="o_dashboard_card o_card_info" style="text-decoration: none;">
+            <div class="o_card_header">Total Records</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ history|length }}</div>
+            <div class="o_card_unit">Rate entries</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_info">
+            <div class="o_card_header">Total Records</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ history|length }}</div>
+            <div class="o_card_unit">Rate entries</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="#fuel-rate-history-table" class="o_dashboard_card o_card_teal" style="text-decoration: none;">
+            <div class="o_card_header">Source</div>
+            <div class="o_card_value" style="font-size: 18px;">
+                <i class="fas fa-globe" style="font-size: 24px;"></i>
+                PSO Official
+            </div>
+            <div class="o_card_unit">Auto-updated daily</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_teal">
+            <div class="o_card_header">Source</div>
+            <div class="o_card_value" style="font-size: 18px;">
+                <i class="fas fa-globe" style="font-size: 24px;"></i>
+                PSO Official
+            </div>
+            <div class="o_card_unit">Auto-updated daily</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Filter -->
+    <div class="o_search_bar">
+        <label style="margin-right: 10px;">Show:</label>
+        <select class="o_filter_select" onchange="window.location.href='{{ url_for('admin.fuel_rate_history') }}?days='+this.value">
+            <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+            <option value="15" {% if days == 15 %}selected{% endif %}>Last 15 days</option>
+            <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+            <option value="60" {% if days == 60 %}selected{% endif %}>Last 60 days</option>
+            <option value="90" {% if days == 90 %}selected{% endif %}>Last 90 days</option>
+        </select>
+        <a href="{{ url_for('admin.petrol_rates') }}" class="o_button o_button_secondary">
+            <i class="fas fa-arrow-left"></i> Back to Rates
+        </a>
+    </div>
+    
+    <!-- History Table -->
+    <div class="o_list_view" id="fuel-rate-history-table">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>#</th>
+                    <th>Date</th>
+                    <th>Rate (PKR/Liter)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in history %}
+                <tr class="o_list_record">
+                    <td>{{ loop.index }}</td>
+                    <td>{{ entry.date }}</td>
+                    <td><strong>PKR {{ entry.rate }}</strong></td>
+                    <td>
+                        <span class="o_badge {% if loop.first %}o_badge_success{% else %}o_badge_secondary{% endif %}">
+                            {% if loop.first %}Current{% else %}Historical{% endif %}
+                        </span>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--odoo-text-light);">
+                        <i class="fas fa-inbox"></i> No rate history found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

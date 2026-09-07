@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div class="o_dashboard_topbar">
+        <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+            <i data-lucide="gauge" style="color: var(--odoo-primary);"></i> Administration Dashboard
+        </h1>
+
+        {# Dashboard toolbars are icon-only - the labels stay in the markup for
+           screen readers and tooltips, `.o_icons_only` hides them visually so
+           the data gets the width. #}
+        {# The period travels with the refresh: the deck is counted over the
+           timeframe chip, so a refresh that dropped it would quietly swap the
+           board back to the default window. #}
+        {% set sync_endpoint = url_for('admin.api_dashboard_stats', period=period) %}
+        {% include '_live_sync.html' %}
+
+        {% include 'admin/_timeframe.html' %}
+    </div>
+
+    {% if stats and stats.pos %}
+    {# This whole page is already admin-only (role_required('admin') on the
+       route), so every card below is unconditionally clickable.
+
+       No Recent Purchase Orders table follows: every one of those rows is
+       reachable by clicking the PO cards above, which now land on exactly
+       the records they counted. The Purchase Order module is untouched. #}
+    {% include 'admin/_dashboard_kpi_cards.html' %}
+    {% else %}
+    <div class="o_alert o_alert_warning">
+        <i data-lucide="alert-triangle"></i> Unable to load dashboard statistics. Please check the system status.
+    </div>
+    {% endif %}
+
+    {# The same period sections the Executive board carries, from the same
+       helper - Operations KPIs, top cities, REDO turnaround including the
+       breach count, and technician performance. #}
+    {% include 'admin/_period_sections.html' %}
+</div>
+{% endblock %}

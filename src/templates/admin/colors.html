@@ -1,0 +1,34 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-palette" style="color: var(--odoo-primary);"></i> Vehicle Colors</h1>
+    <div class="o_search_bar">
+        <a href="{{ url_for('admin.color_add') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="Add Color" aria-label="Add Color"><i class="fas fa-plus"></i></a>
+    </div>
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr><th>Name</th><th>Code</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for color in colors %}
+                <tr class="o_list_record">
+                    <td>{{ color.name }}</td>
+                    <td>{{ color.code or '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.color_edit', id=color.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit Color" aria-label="Edit Color"><i class="fas fa-pencil-alt"></i></a>
+                        <form method="POST" action="{{ url_for('admin.color_delete', id=color.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete Color" aria-label="Delete Color"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" style="text-align: center; color: var(--odoo-text-light);">No colors found</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div class="o_rr_head">
+        <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+            <i data-lucide="mail" style="color: var(--odoo-primary);"></i> Report Recipients
+        </h1>
+        <p class="o_rr_sub">
+            Who receives the month-end report pack &mdash; every report in the catalogue,
+            emailed automatically on the 1st of each month at 00:00, covering the month
+            just ended. These reports carry commercial and staff-performance detail, so
+            add an address only when that whole class of report is meant for them.
+        </p>
+    </div>
+
+    <div class="o_rr_layout">
+        {# no-uppercase: an email address is an identifier, and the list's
+           default uppercasing makes it read as something it is not. #}
+        <div class="o_list_view no-uppercase">
+            <div class="o_section_header o_section_header_flush">
+                <h3><i data-lucide="users"></i> Distribution List</h3>
+                <span class="o_period_chip_static">{{ active_count }} active</span>
+            </div>
+            <table class="o_list_table">
+                <thead>
+                    <tr class="o_list_header">
+                        <th>Email Address</th>
+                        <th>Name</th>
+                        <th>Added</th>
+                        <th>Status</th>
+                        <th class="o_rr_actions_col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for recipient in recipients %}
+                    <tr class="o_list_record {% if not recipient.is_active %}o_rr_inactive{% endif %}">
+                        <td><strong>{{ recipient.email }}</strong></td>
+                        <td>{{ recipient.name or '-' }}</td>
+                        <td>{{ recipient.created_at.strftime('%d %b %Y') if recipient.created_at else '-' }}</td>
+                        <td>
+                            {% if recipient.is_active %}
+                            <span class="o_badge o_badge_success">Receiving</span>
+                            {% else %}
+                            <span class="o_badge o_badge_secondary">Paused</span>
+                            {% endif %}
+                        </td>
+                        <td class="o_rr_actions_col">
+                            <div class="o_action_btns">
+                                <form method="post" style="display: inline;"
+                                    action="{{ url_for('admin.report_recipient_toggle', recipient_id=recipient.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                    <button type="submit"
+                                        class="o_icon_btn {{ 'o_icon_btn_edit' if recipient.is_active else 'o_icon_btn_add' }}"
+                                        title="{{ 'Pause - stop sending reports to this address' if recipient.is_active else 'Resume sending reports to this address' }}"
+                                        aria-label="{{ 'Pause reports to this address' if recipient.is_active else 'Resume reports to this address' }}">
+                                        <i data-lucide="{{ 'pause' if recipient.is_active else 'play' }}"></i>
+                                    </button>
+                                </form>
+                                <form method="post" style="display: inline;"
+                                    action="{{ url_for('admin.report_recipient_delete', recipient_id=recipient.id) }}"
+                                    onsubmit="return confirm('Remove {{ recipient.email }} from the report distribution?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                    <button type="submit" class="o_icon_btn o_icon_btn_delete"
+                                        title="Remove this address" aria-label="Remove this address">
+                                        <i data-lucide="trash-2"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="o_rr_empty">No recipients configured</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="o_rr_side">
+            <form method="post" action="{{ url_for('admin.report_recipient_add') }}" class="o_rr_card">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <h3 class="o_rr_card_title"><i data-lucide="user-plus"></i> Add a Recipient</h3>
+
+                <label class="o_rr_field">
+                    <span>Email Address</span>
+                    <input type="email" name="email" required placeholder="name@on-tracking.com"
+                        class="o_field_widget no-uppercase">
+                </label>
+
+                <label class="o_rr_field">
+                    <span>Name <em>(optional)</em></span>
+                    <input type="text" name="name" placeholder="Who this is" class="o_field_widget">
+                </label>
+
+                <button type="submit" class="o_button">
+                    <i data-lucide="save"></i> Add to Distribution
+                </button>
+
+                <p class="o_rr_hint">
+                    An address that was removed earlier is reactivated rather than duplicated.
+                </p>
+            </form>
+
+            <div class="o_rr_card o_rr_note">
+                <h3 class="o_rr_card_title"><i data-lucide="shield"></i> If this list is empty</h3>
+                <p>
+                    The month-end pack falls back to the built-in management list rather than
+                    sending to nobody &mdash; a report that silently goes nowhere is the failure
+                    no one notices until it is missed.
+                </p>
+                <ul class="o_rr_fallback">
+                    {% for address in fallback %}
+                    <li>{{ address }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .o_rr_head {
+        margin-bottom: 16px;
+    }
+
+    .o_rr_sub {
+        color: var(--odoo-text-light);
+        font-size: 12px;
+        margin: 6px 0 0;
+        max-width: 80ch;
+    }
+
+    .o_rr_layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 18px;
+        align-items: start;
+    }
+
+    .o_rr_side {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .o_rr_card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        background: var(--odoo-white);
+        border: 1px solid var(--odoo-border);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: var(--card-shadow);
+    }
+
+    .o_rr_card_title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--odoo-primary-dark);
+    }
+
+    .o_rr_card_title svg,
+    .o_rr_card_title i {
+        width: 15px;
+        height: 15px;
+        color: var(--odoo-primary);
+    }
+
+    .o_rr_field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .o_rr_field > span {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--odoo-text-light);
+    }
+
+    .o_rr_field em {
+        font-style: normal;
+        font-weight: 600;
+        color: var(--odoo-text-muted);
+        text-transform: none;
+        letter-spacing: 0;
+    }
+
+    .o_rr_field input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .o_rr_hint {
+        margin: 0;
+        font-size: 10.5px;
+        line-height: 1.5;
+        color: var(--odoo-text-muted);
+    }
+
+    .o_rr_note p {
+        margin: 0;
+        font-size: 11px;
+        line-height: 1.55;
+        color: var(--odoo-text-light);
+    }
+
+    .o_rr_fallback {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 10.5px;
+        color: var(--odoo-text-muted);
+    }
+
+    /* A paused address stays legible - it is a record, not a deletion. */
+    .o_rr_inactive td {
+        opacity: 0.6;
+    }
+
+    .o_rr_empty {
+        text-align: center;
+        color: var(--odoo-text-light);
+        padding: 26px;
+    }
+
+    /* The actions column is the one place a left-aligned last column is
+       wrong; the global rule already right-aligns it, this keeps the two
+       forms from wrapping. */
+    .o_rr_actions_col {
+        white-space: nowrap;
+    }
+
+    @media (max-width: 1000px) {
+        .o_rr_layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}

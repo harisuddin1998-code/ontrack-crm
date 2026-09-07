@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-flag" style="color: var(--odoo-primary);"></i>
+        Flag Details - {{ flag.registration_no }}
+    </h1>
+    
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">{{ flag.customer_name }}</h2>
+            <p class="o_form_subtitle">
+                Type: {{ flag.flag_type }} | Priority: {{ flag.priority }} | Status: {{ flag.status }}
+            </p>
+        </div>
+        <div class="o_form_body">
+            <div class="o_form_group">
+                <div class="o_field_group">
+                    <label class="o_field_label">Registration</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ flag.registration_no }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Customer</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ flag.customer_name }}</div>
+                </div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group">
+                    <label class="o_field_label">Manufacturer / Brand</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ flag.make }} {{ flag.model }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Year / Model / Color</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ flag.year }} / {{ flag.color }}</div>
+                </div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group">
+                    <label class="o_field_label">Reason</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ flag.flag_reason }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Flagged By</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ flag.flagged_by_user.name if flag.flagged_by_user else '-' }}</div>
+                </div>
+            </div>
+            {% if flag.status == 'PENDING' and current_user.is_admin() %}
+            <hr style="border: 0; border-top: 1px solid var(--odoo-border); margin: 20px 0;">
+            <h3 style="margin-bottom: 15px; color: var(--odoo-text-dark);">Assign Technician</h3>
+            <form method="POST" action="{{ url_for('removal.flag_assign', flag_id=flag.id) }}">
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Technician</label>
+                        {# Technician Management is the roster - every name
+                           offered here is an active technician recorded
+                           there. #}
+                        <select name="technician_id" class="o_field_widget" required>
+                            <option value="">Select Technician...</option>
+                            {% for tech in technicians %}
+                                <option value="{{ tech.id }}">{{ tech.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button type="submit" class="o_button"><i class="fas fa-user-check"></i> Assign Technician</button>
+                </div>
+            </form>
+            {# The technician doing the job is on the roster, not a login, so
+               who may close the job out is the question the route already
+               answers: an administrator or the removal team. #}
+            {% elif flag.status == 'IN_PROGRESS' and (current_user.is_admin() or current_user.is_removal()) %}
+            <hr style="border: 0; border-top: 1px solid var(--odoo-border); margin: 20px 0;">
+            <h3 style="margin-bottom: 15px; color: var(--odoo-text-dark);">Complete Removal</h3>
+            <p style="color: var(--odoo-text-light); margin-bottom: 10px;">Assigned to: <strong>{{ flag.technician.name if flag.technician else '-' }}</strong></p>
+            <form method="POST" action="{{ url_for('removal.flag_complete', flag_id=flag.id) }}">
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Completion Notes</label>
+                        <textarea name="completion_notes" class="o_field_widget" placeholder="Enter notes here..." rows="3" required></textarea>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button type="submit" class="o_button o_button_success"><i class="fas fa-check"></i> Complete Action</button>
+                </div>
+            </form>
+            {% elif flag.status == 'COMPLETED' %}
+            <hr style="border: 0; border-top: 1px solid var(--odoo-border); margin: 20px 0;">
+            <h3 style="margin-bottom: 15px; color: var(--odoo-text-dark);">Completion Information</h3>
+            <div class="o_form_group">
+                <div class="o_field_group">
+                    <label class="o_field_label">Completed At</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ flag.completed_at.strftime('%Y-%m-%d %H:%M:%S') if flag.completed_at else '-' }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Completion Notes</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ flag.completion_notes or 'No notes provided' }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="o_action_bar" style="margin-top: 20px;">
+                <a href="{{ url_for('removal.flagged_vehicles') }}" class="o_button o_button_secondary">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

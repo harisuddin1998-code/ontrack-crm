@@ -1,0 +1,12 @@
+{# The fuel-invoices search, carried through a POST so the page it returns to
+   is the page it was submitted from.
+
+   Adding expenses is a run of entries against one invoice, not a single
+   action. Without these the redirect landed on a bare /fuel-invoices - the
+   technician and date range the user had searched on were gone and the panel
+   they were working in was closed, so every line meant setting the search up
+   again. Included by every form on the page that redirects back to it. #}
+<input type="hidden" name="technician_id" value="{{ technician_filter or '' }}">
+<input type="hidden" name="from" value="{{ date_range.from_str }}">
+<input type="hidden" name="to" value="{{ date_range.to_str }}">
+<input type="hidden" name="status" value="{{ status_filter or '' }}">

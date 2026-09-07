@@ -1,0 +1,26 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-edit" style="color: var(--odoo-primary);"></i> Update Transfer</h1>
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Update Transfer Details</h2>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="">
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Name</label>
+                        <input type="text" class="o_field_widget" placeholder="Enter name" required>
+                    </div>
+                </div>
+                <div class="o_action_bar">
+                    <a href="{{ url_for('removal.transfer_dashboard') }}" class="o_button o_button_secondary">Cancel</a>
+                    <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="Update Transfer" aria-label="Update Transfer"><i class="fas fa-floppy-disk"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

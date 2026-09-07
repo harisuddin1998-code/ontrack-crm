@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block content %}
+{# One suggestion and its conversation. The same page for both sides - the
+   raiser and whoever answers them - because they are talking about the same
+   thing and a reply that only one of them can see is not a conversation.
+   What differs is only the status control, which is the Administrator's. #}
+<div class="o_container_fluid">
+    <div class="o_dashboard_topbar">
+        <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+            <i data-lucide="lightbulb" style="color: var(--odoo-primary);"></i>
+            {{ suggestion.reference }}
+        </h1>
+        <a href="{{ url_for('suggestions.wallboard') if can_manage else url_for('suggestions.my_suggestions') }}"
+            class="o_button o_button_secondary">
+            <i data-lucide="arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">{{ suggestion.title }}</h2>
+            <p class="o_form_subtitle">
+                {{ suggestion.area }} &middot; sent by <strong>{{ suggestion.raiser_name() }}</strong>
+                {% if suggestion.raiser %}({{ suggestion.raiser.get_role_display() }}){% endif %}
+                on {{ suggestion.created_at.strftime('%d %b %Y at %H:%M') if suggestion.created_at else '-' }}
+                <span class="o_badge {{ {'NEW': 'o_badge_warning', 'IN_PROGRESS': 'o_badge_info',
+                    'COMPLETED': 'o_badge_success', 'REJECTED': 'o_badge_secondary'}[suggestion.status] }}"
+                    style="margin-left: 8px;">{{ suggestion.status_label() }}</span>
+            </p>
+        </div>
+        <div class="o_form_body">
+            <div class="o_sug_original">{{ suggestion.description }}</div>
+
+            {% if suggestion.closed_at %}
+            <p class="o_sug_meta">
+                Closed {{ suggestion.closed_at.strftime('%d %b %Y at %H:%M') }}
+                {% if suggestion.handler %}by {{ suggestion.handler.name or suggestion.handler.username }}{% endif %}.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ===== STATUS - ADMINISTRATOR ONLY =====
+       Remarks travel with the change rather than being a separate note, so
+       the raiser reads why it moved at the moment it moved. #}
+    {% if can_manage %}
+    <div class="o_form_view" style="margin-top: 18px;">
+        <div class="o_section_header o_section_header_flush">
+            <h3><i data-lucide="settings"></i> Update Status</h3>
+        </div>
+        <div class="o_form_body" style="padding: 16px 18px;">
+            <form method="POST" action="{{ url_for('suggestions.set_status', suggestion_id=suggestion.id) }}"
+                class="o_sug_status_form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <label class="o_report_date"><span>Status</span>
+                    <select name="status" class="o_field_widget" style="width: 210px;">
+                        {% for value, label in statuses.items() %}
+                        <option value="{{ value }}" {% if suggestion.status==value %}selected{% endif %}>
+                            {{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="o_report_date" style="flex: 1; min-width: 260px;"><span>Remarks to the user</span>
+                    <input type="text" name="remarks" class="o_field_widget"
+                        placeholder="What was done, or why it was not taken up">
+                </label>
+                <button type="submit" class="o_button">
+                    <i data-lucide="save"></i> Save &amp; Notify
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="o_form_view" style="margin-top: 18px;">
+        <div class="o_section_header o_section_header_flush">
+            <h3><i data-lucide="messages-square"></i> Conversation</h3>
+            <span class="o_mis_period_chip">{{ suggestion.messages|length }} message(s)</span>
+        </div>
+        <div class="o_form_body" style="padding: 16px 18px;">
+            <div class="o_sug_thread">
+                {% for message in suggestion.messages %}
+                <div class="o_sug_msg {% if message.from_admin %}is_admin{% endif %}">
+                    <div class="o_sug_msg_head">
+                        <strong>{{ message.author_name() }}</strong>
+                        {% if message.from_admin %}<span class="o_badge o_badge_info">Administrator</span>{% endif %}
+                        {% if message.status_change %}
+                        <span class="o_badge o_badge_secondary">
+                            &rarr; {{ statuses.get(message.status_change, message.status_change) }}</span>
+                        {% endif %}
+                        <span class="o_sug_msg_time">
+                            {{ message.created_at.strftime('%d %b %Y, %H:%M') if message.created_at else '' }}</span>
+                    </div>
+                    <div class="o_sug_msg_body">{{ message.body }}</div>
+                </div>
+                {% else %}
+                <p class="o_sug_meta">No replies yet.</p>
+                {% endfor %}
+            </div>
+
+            <form method="POST" action="{{ url_for('suggestions.reply', suggestion_id=suggestion.id) }}"
+                class="o_sug_reply">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <textarea name="body" class="o_field_widget" rows="3" required
+                    placeholder="{% if can_manage %}Reply to {{ suggestion.raiser_name() }}...{% else %}Add anything else that would help...{% endif %}"></textarea>
+                <button type="submit" class="o_button">
+                    <i data-lucide="send"></i> Send Reply
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .o_dashboard_topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+
+    .o_sug_original {
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--odoo-text);
+        background: var(--odoo-secondary);
+        border: 1px solid var(--odoo-border);
+        border-radius: 10px;
+        padding: 14px 16px;
+    }
+
+    .o_sug_meta {
+        font-size: 11.5px;
+        color: var(--odoo-text-muted);
+        margin: 12px 0 0;
+    }
+
+    .o_sug_status_form {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .o_sug_thread {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    /* The two sides of the conversation are told apart by which edge they sit
+       against and which colour they carry - reading a thread should not mean
+       checking a name on every message. */
+    .o_sug_msg {
+        border: 1px solid var(--odoo-border);
+        border-left: 3px solid var(--odoo-border);
+        border-radius: 10px;
+        padding: 10px 14px;
+        background: var(--odoo-white);
+        max-width: 82%;
+    }
+
+    .o_sug_msg.is_admin {
+        align-self: flex-end;
+        border-left-color: var(--odoo-primary);
+        background: var(--odoo-primary-soft);
+    }
+
+    .o_sug_msg_head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 11.5px;
+        margin-bottom: 6px;
+    }
+
+    .o_sug_msg_time {
+        color: var(--odoo-text-muted);
+        margin-left: auto;
+    }
+
+    .o_sug_msg_body {
+        white-space: pre-wrap;
+        font-size: 12.5px;
+        line-height: 1.55;
+    }
+
+    .o_sug_reply {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        border-top: 1px solid var(--odoo-border);
+        padding-top: 14px;
+    }
+
+    .o_sug_reply textarea {
+        width: 100%;
+    }
+</style>
+{% endblock %}

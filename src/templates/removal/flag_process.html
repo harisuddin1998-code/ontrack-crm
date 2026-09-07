@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-check" style="color: var(--odoo-primary);"></i>
+        Process Flag - {{ flag.registration_no }}
+    </h1>
+    
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">{{ flag.customer_name }}</h2>
+            <p class="o_form_subtitle">{{ flag.flag_type }} - Priority: {{ flag.priority }}</p>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="{{ url_for('removal.process_flag', flag_id=flag.id) }}">
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Action</label>
+                        <select name="action" class="o_field_widget">
+                            <option value="IN_PROGRESS">Start Processing</option>
+                            <option value="COMPLETE">Mark as Completed</option>
+                            <option value="CANCELLED">Cancel</option>
+                        </select>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Assign Technician</label>
+                        <select name="technician_id" class="o_field_widget">
+                            <option value="">Select Technician</option>
+                            {% for tech in technicians %}
+                            <option value="{{ tech.id }}">{{ tech.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group" style="grid-column: span 2;">
+                        <label class="o_field_label">Completion Notes</label>
+                        <textarea name="completion_notes" class="o_field_widget" rows="4" placeholder="Enter notes..."></textarea>
+                    </div>
+                </div>
+                <div class="o_action_bar">
+                    <a href="{{ url_for('removal.flagged_vehicles') }}" class="o_button o_button_secondary">
+                        <i class="fas fa-arrow-left"></i> Cancel
+                    </a>
+                    <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="Update Flag" aria-label="Update Flag">
+                        <i class="fas fa-floppy-disk"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

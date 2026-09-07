@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div class="o_sec_head">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+                <i data-lucide="shield" style="color: var(--odoo-primary);"></i> Security Briefings
+            </h1>
+            <p class="o_sec_sub">
+                Briefings appear here on their own: completing an installation sends the completion email and raises
+                the briefing in the same step. Nothing needs syncing by hand.
+            </p>
+        </div>
+        <div class="o_icons_only" style="display: flex; gap: 8px;">
+            <a href="{{ url_for('security.briefings') }}" class="o_button o_button_secondary" title="All briefings"
+                aria-label="All briefings">
+                <i data-lucide="list"></i><span class="o_btn_label">All Briefings</span>
+            </a>
+        </div>
+    </div>
+
+    {# Kanban cards double as the tabs: each shows a count and, when clicked,
+       filters the table below to exactly that category. #}
+    <div class="o_kanban_stats">
+        <a href="{{ url_for('security.dashboard', tab='new') }}"
+            class="o_stat_card o_stat_lilac {% if tab == 'new' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="inbox"></i> New from Installations</span>
+            <div class="o_stat_value">{{ stats.new_from_installations|default(0)|count_fmt }}</div>
+            <div class="o_stat_hint">raised by a completed installation</div>
+        </a>
+
+        <a href="{{ url_for('security.dashboard', tab='all') }}"
+            class="o_stat_card o_stat_blue {% if tab == 'all' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="shield"></i> Total Briefings</span>
+            <div class="o_stat_value">{{ stats.total|count_fmt }}</div>
+            <div class="o_stat_hint">all briefings on record</div>
+        </a>
+
+        <a href="{{ url_for('security.dashboard', tab='completed') }}"
+            class="o_stat_card o_stat_green {% if tab == 'completed' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="check-circle"></i> Completed</span>
+            <div class="o_stat_value">{{ stats.completed|count_fmt }}</div>
+            <div class="o_stat_hint">briefing delivered &amp; emailed</div>
+        </a>
+
+        <a href="{{ url_for('security.dashboard', tab='pending') }}"
+            class="o_stat_card o_stat_amber {% if tab == 'pending' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="clock"></i> Pending</span>
+            <div class="o_stat_value">{{ stats.pending|count_fmt }}</div>
+            <div class="o_stat_hint">still to be delivered</div>
+        </a>
+    </div>
+
+    <div class="o_list_view">
+        <div class="o_section_header o_section_header_flush">
+            <h3>
+                <i data-lucide="clipboard-list"></i>
+                {% if tab == 'new' %}New from Installations
+                {% elif tab == 'pending' %}Pending Briefings
+                {% elif tab == 'completed' %}Completed Briefings
+                {% else %}All Briefings{% endif %}
+            </h3>
+            <span class="o_mis_period_chip">{{ briefings|length }} shown</span>
+        </div>
+        <table class="o_list_table">
+            <thead>
+                <tr class="o_list_header">
+                    <th>Customer</th>
+                    <th>Registration</th>
+                    <th>Vehicle</th>
+                    <th>Installed</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th class="o_action_col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for briefing in briefings %}
+                <tr class="o_list_record o_row_link"
+                    data-href="{{ url_for('security.briefing_edit', briefing_id=briefing.id) }}">
+                    <td><strong>{{ briefing.customer_name or '-' }}</strong></td>
+                    <td>{{ briefing.registration_no or '-' }}</td>
+                    <td>{{ briefing.make or '' }} {{ briefing.model or '' }}</td>
+                    <td>{{ briefing.installation_date.strftime('%d/%m/%Y') if briefing.installation_date else '-' }}
+                    </td>
+                    <td>
+                        {% if briefing.synced_from_po %}
+                        <span class="o_badge o_badge_info">Installation</span>
+                        {% else %}
+                        <span class="o_badge o_badge_secondary">Manual</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span
+                            class="o_badge {% if briefing.status == 'COMPLETED' %}o_badge_success{% else %}o_badge_warning{% endif %}">{{ briefing.status }}</span>
+                    </td>
+                    <td class="o_action_col">
+                        <a href="{{ url_for('security.briefing_edit', briefing_id=briefing.id) }}"
+                            class="o_icon_btn o_icon_btn_edit" title="Open briefing" aria-label="Open briefing"><i
+                                data-lucide="pencil"></i></a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        {% if tab == 'new' %}
+                        Nothing new. Briefings land here as soon as an installation is completed.
+                        {% else %}
+                        No briefings in this category.
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .o_sec_head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+    }
+
+    .o_sec_sub {
+        color: var(--odoo-text-light);
+        font-size: 12px;
+        margin: 6px 0 0;
+        max-width: 75ch;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-list" style="color: var(--odoo-primary);"></i>
+        Flagged Vehicles
+    </h1>
+    
+    <div class="o_search_bar">
+        <input type="text" class="o_search_input" placeholder="Search by registration or customer..." id="searchInput" value="{{ search }}">
+        <select class="o_filter_select" id="flagTypeFilter">
+            <option value="">All Types</option>
+            <option value="REMOVAL" {% if flag_type == 'REMOVAL' %}selected{% endif %}>Removal</option>
+            <option value="RETENTION" {% if flag_type == 'RETENTION' %}selected{% endif %}>Retention</option>
+            <option value="TRANSFER" {% if flag_type == 'TRANSFER' %}selected{% endif %}>Transfer</option>
+        </select>
+        <select class="o_filter_select" id="statusFilter">
+            <option value="">All Status</option>
+            <option value="PENDING" {% if status == 'PENDING' %}selected{% endif %}>Pending</option>
+            <option value="IN_PROGRESS" {% if status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+            <option value="COMPLETED" {% if status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+        </select>
+        <a href="{{ url_for('removal.flag_vehicle') }}" class="o_button">
+            <i class="fas fa-plus"></i> Flag Vehicle
+        </a>
+    </div>
+    
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Registration</th>
+                    <th>Customer</th>
+                    <th>Type</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Flagged By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for flag in flags %}
+                <tr class="o_list_record">
+                    <td>{{ flag.registration_no }}</td>
+                    <td>{{ flag.customer_name }}</td>
+                    <td>
+                        <span class="o_badge {% if flag.flag_type == 'REMOVAL' %}o_badge_danger{% elif flag.flag_type == 'RETENTION' %}o_badge_warning{% else %}o_badge_info{% endif %}">
+                            {{ flag.flag_type }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="o_badge {% if flag.priority == 'URGENT' %}o_badge_danger{% elif flag.priority == 'HIGH' %}o_badge_warning{% else %}o_badge_info{% endif %}">
+                            {{ flag.priority }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="o_badge {% if flag.status == 'COMPLETED' %}o_badge_success{% elif flag.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                            {{ flag.status }}
+                        </span>
+                    </td>
+                    <td>{{ flag.flagged_by_user.name if flag.flagged_by_user else '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('removal.flag_detail', flag_id=flag.id) }}" class="o_icon_btn o_icon_btn_view" title="View Flag Details" aria-label="View Flag Details">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        {% if flag.status != 'COMPLETED' %}
+                        <a href="{{ url_for('removal.flag_detail', flag_id=flag.id) }}" class="o_button o_button_success o_button_sm">
+                            <i class="fas fa-check"></i> Process
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        <i class="fas fa-inbox" style="font-size: 24px; display: block; margin-bottom: 10px;"></i>
+                        No vehicles flagged for removal
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.getElementById('searchInput').addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            window.location.href = '{{ url_for("removal.flagged_vehicles") }}?search=' + this.value + '&flag_type=' + document.getElementById('flagTypeFilter').value + '&status=' + document.getElementById('statusFilter').value;
+        }
+    });
+    document.getElementById('flagTypeFilter').addEventListener('change', function() {
+        window.location.href = '{{ url_for("removal.flagged_vehicles") }}?search=' + document.getElementById('searchInput').value + '&flag_type=' + this.value + '&status=' + document.getElementById('statusFilter').value;
+    });
+    document.getElementById('statusFilter').addEventListener('change', function() {
+        window.location.href = '{{ url_for("removal.flagged_vehicles") }}?search=' + document.getElementById('searchInput').value + '&flag_type=' + document.getElementById('flagTypeFilter').value + '&status=' + this.value;
+    });
+</script>
+{% endblock %}

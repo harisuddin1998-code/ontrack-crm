@@ -1,0 +1,52 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-credit-card" style="color: var(--odoo-primary);"></i> Installation Payment Recovery</h1>
+    <p style="color: var(--odoo-text-light); margin: -10px 0 15px 0; font-size: 14px;">
+        Recovery of PO installation charges. AMC / monitoring charges are billed here once, then transferred into
+        <a href="{{ url_for('annual_recovery.dashboard') }}">AMC / Annual Recovery</a> on completion, where they
+        loop as a recurring annual obligation instead of a one-time figure.
+    </p>
+    <div class="o_dashboard_cards">
+        <div class="o_dashboard_card o_card_primary"><div class="o_card_header">Total POs</div><div class="o_card_value">{{ stats.total }}</div></div>
+        <div class="o_dashboard_card o_card_warning"><div class="o_card_header">Pending</div><div class="o_card_value">{{ stats.pending }}</div></div>
+        <div class="o_dashboard_card o_card_success"><div class="o_card_header">Paid</div><div class="o_card_value">{{ stats.paid }}</div></div>
+        <div class="o_dashboard_card o_card_danger"><div class="o_card_header">Overdue</div><div class="o_card_value">{{ stats.overdue }}</div></div>
+        <div class="o_dashboard_card o_card_info"><div class="o_card_header">Installation Charges (Billed)</div><div class="o_card_value">PKR {{ stats.total_installation_billed|int }}</div></div>
+        <a href="{{ url_for('annual_recovery.dashboard') }}" class="o_dashboard_card o_card_secondary" style="text-decoration: none;"><div class="o_card_header">AMC / Monitoring Charges (Transferred)</div><div class="o_card_value">PKR {{ stats.total_amc_billed|int }}</div></a>
+    </div>
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr><th>PO</th><th>Customer</th><th>Installation</th><th>AMC / Monitoring</th><th>Received</th><th>Remaining</th><th>Status</th><th>Due Date</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for payment in payments %}
+                <tr class="o_list_record">
+                    <td>{{ payment.purchase_order.po_number if payment.purchase_order else '-' }}</td>
+                    <td>{{ payment.purchase_order.owner_name if payment.purchase_order else '-' }}</td>
+                    <td>PKR {{ payment.total_rates|int }}</td>
+                    <td>
+                        {% if payment.purchase_order and payment.purchase_order.reg_no and payment.purchase_order.reg_no.upper() in transferred_reg_nos %}
+                        <a href="{{ url_for('annual_recovery.dashboard') }}" title="PKR {{ payment.total_amc|int }} - now tracked annually in Annual Recovery">
+                            <i data-lucide="repeat" class="lucide-icon" style="width:12px;height:12px;"></i> Transferred
+                        </a>
+                        {% else %}
+                        PKR {{ payment.total_amc|int }}
+                        {% endif %}
+                    </td>
+                    <td>PKR {{ payment.amount_received|int }}</td>
+                    <td>PKR {{ payment.remaining_amount|int }}</td>
+                    <td><span class="o_badge {% if payment.payment_status == 'PAID' %}o_badge_success{% elif payment.payment_status == 'OVERDUE' %}o_badge_danger{% elif payment.payment_status == 'PARTIAL' %}o_badge_warning{% else %}o_badge_secondary{% endif %}">{{ payment.payment_status }}</span></td>
+                    <td>{{ payment.payment_due_date.strftime('%d/%m/%Y') if payment.payment_due_date else '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('payment.payment_detail', payment_id=payment.id) }}" class="o_icon_btn o_icon_btn_view" title="View Payment" aria-label="View Payment"><i class="fas fa-eye"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

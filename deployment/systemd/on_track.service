@@ -1,0 +1,24 @@
+[Unit]
+Description=ON TRACK Vehicle Tracking System
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/on_track
+Environment="PATH=/var/www/on_track/venv/bin"
+Environment="FLASK_APP=src/app.py"
+Environment="FLASK_ENV=production"
+Environment="DATABASE_URL=postgresql://on_track:password@localhost/on_track_db"
+Environment="CELERY_BROKER_URL=redis://localhost:6379/0"
+Environment="CELERY_RESULT_BACKEND=redis://localhost:6379/1"
+ExecStart=/var/www/on_track/venv/bin/gunicorn -c deployment/gunicorn.conf.py wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target 

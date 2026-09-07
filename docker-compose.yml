@@ -1,0 +1,180 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: on_track_postgres
+    environment:
+      POSTGRES_USER: on_track
+      POSTGRES_PASSWORD: on_track_password
+      POSTGRES_DB: on_track_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Not published on the host: web and celery reach it as postgres:5432
+    # over the compose network. Publishing bound 0.0.0.0 and exposed the
+    # database to the internet.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U on_track"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - on_track_network
+
+  # Redis Cache & Broker
+  redis:
+    image: redis:7-alpine
+    container_name: on_track_redis
+    # Not published on the host: reached as redis:6379 over the compose
+    # network. This instance has no password, so it must not be public.
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - on_track_network
+
+  # Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: on_track_web
+    environment:
+      - FLASK_APP=src/app.py
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://on_track:on_track_password@postgres:5432/on_track_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      # Secrets are NOT committed: this repository is public. Compose reads
+      # them from a .env file sitting next to this file on the server, and
+      # each falls back to empty when that file is absent, so a missing .env
+      # degrades the relevant feature instead of failing the whole stack.
+      - SECRET_KEY=${SECRET_KEY:-}
+      - MAIL_SERVER=${MAIL_SERVER:-}
+      - MAIL_PORT=${MAIL_PORT:-26}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER:-}
+      - GPS_API_URL=${GPS_API_URL:-}
+      - GPS_API_KEY=${GPS_API_KEY:-}
+      # Reachable only from the office LAN; a cloud container cannot route to
+      # a private address, so these stay empty unless a tunnel is in place.
+      - INTERNAL_DB_SERVER=${INTERNAL_DB_SERVER:-}
+      - INTERNAL_DB_USER=${INTERNAL_DB_USER:-}
+      - INTERNAL_DB_PASSWORD=${INTERNAL_DB_PASSWORD:-}
+      - INTERNAL_DB_NAME=${INTERNAL_DB_NAME:-SJ_MIS}
+      - CACHE_REDIS_URL=redis://redis:6379/2
+    ports:
+      # Loopback only; the host nginx proxies to 127.0.0.1:6012.
+      - "127.0.0.1:6012:8000"
+    volumes:
+      - ./src:/app/src
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: gunicorn --bind 0.0.0.0:8000 --workers 4 --threads 2 --worker-class gthread --preload --access-logfile - --error-logfile - wsgi:app
+    restart: unless-stopped
+    networks:
+      - on_track_network
+
+  # Celery Worker
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: on_track_celery
+    environment:
+      - FLASK_APP=src/app.py
+      - DATABASE_URL=postgresql://on_track:on_track_password@postgres:5432/on_track_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      # Secrets are NOT committed: this repository is public. Compose reads
+      # them from a .env file sitting next to this file on the server, and
+      # each falls back to empty when that file is absent, so a missing .env
+      # degrades the relevant feature instead of failing the whole stack.
+      - SECRET_KEY=${SECRET_KEY:-}
+      - MAIL_SERVER=${MAIL_SERVER:-}
+      - MAIL_PORT=${MAIL_PORT:-26}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER:-}
+      - GPS_API_URL=${GPS_API_URL:-}
+      - GPS_API_KEY=${GPS_API_KEY:-}
+      # Reachable only from the office LAN; a cloud container cannot route to
+      # a private address, so these stay empty unless a tunnel is in place.
+      - INTERNAL_DB_SERVER=${INTERNAL_DB_SERVER:-}
+      - INTERNAL_DB_USER=${INTERNAL_DB_USER:-}
+      - INTERNAL_DB_PASSWORD=${INTERNAL_DB_PASSWORD:-}
+      - INTERNAL_DB_NAME=${INTERNAL_DB_NAME:-SJ_MIS}
+    volumes:
+      - ./src:/app/src
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A src.tasks.celery_app worker --loglevel=info --concurrency=4
+    restart: unless-stopped
+    networks:
+      - on_track_network
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: on_track_celery_beat
+    environment:
+      - FLASK_APP=src/app.py
+      - DATABASE_URL=postgresql://on_track:on_track_password@postgres:5432/on_track_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      # Secrets are NOT committed: this repository is public. Compose reads
+      # them from a .env file sitting next to this file on the server, and
+      # each falls back to empty when that file is absent, so a missing .env
+      # degrades the relevant feature instead of failing the whole stack.
+      - SECRET_KEY=${SECRET_KEY:-}
+      - MAIL_SERVER=${MAIL_SERVER:-}
+      - MAIL_PORT=${MAIL_PORT:-26}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER:-}
+      - GPS_API_URL=${GPS_API_URL:-}
+      - GPS_API_KEY=${GPS_API_KEY:-}
+      # Reachable only from the office LAN; a cloud container cannot route to
+      # a private address, so these stay empty unless a tunnel is in place.
+      - INTERNAL_DB_SERVER=${INTERNAL_DB_SERVER:-}
+      - INTERNAL_DB_USER=${INTERNAL_DB_USER:-}
+      - INTERNAL_DB_PASSWORD=${INTERNAL_DB_PASSWORD:-}
+      - INTERNAL_DB_NAME=${INTERNAL_DB_NAME:-SJ_MIS}
+    depends_on:
+      - redis
+      - celery
+    command: celery -A src.tasks.celery_app beat --loglevel=info
+    restart: unless-stopped
+    networks:
+      - on_track_network
+
+# The bundled nginx service was removed: the deploy host serves this app
+# through its own nginx (and Cloudflare) on 80/443, so a container
+# claiming those host ports failed the stack with "port is already
+# allocated". Configs remain in deployment/nginx/ for standalone use.
+
+networks:
+  on_track_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

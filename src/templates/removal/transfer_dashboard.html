@@ -1,0 +1,47 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-exchange-alt" style="color: var(--odoo-primary);"></i> Transfers</h1>
+    <div class="o_search_bar">
+        <a href="{{ url_for('removal.transfer_new') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="New Transfer" aria-label="New Transfer"><i class="fas fa-plus"></i></a>
+        <input type="text" class="o_search_input" placeholder="Search..." id="searchInput" value="{{ search }}">
+        <select class="o_filter_select" id="statusFilter">
+            <option value="">All</option>
+            <option value="PENDING" {% if status == 'PENDING' %}selected{% endif %}>Pending</option>
+            <option value="IN_PROGRESS" {% if status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+            <option value="COMPLETED" {% if status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+        </select>
+    </div>
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr><th>From</th><th>To</th><th>Customer</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for activity in activities %}
+                <tr class="o_list_record">
+                    <td>{{ activity.old_registration_no }}</td>
+                    <td>{{ activity.new_registration_no }}</td>
+                    <td>{{ activity.old_customer_name }}</td>
+                    <td><span class="o_badge {% if activity.status == 'COMPLETED' %}o_badge_success{% elif activity.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">{{ activity.status }}</span></td>
+                    <td>
+                        <a href="{{ url_for('removal.transfer_update', transfer_id=activity.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit Transfer" aria-label="Edit Transfer"><i class="fas fa-pencil-alt"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+    document.getElementById('searchInput').addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            window.location.href = '{{ url_for("removal.transfer_dashboard") }}?search=' + this.value + '&status=' + document.getElementById('statusFilter').value;
+        }
+    });
+    document.getElementById('statusFilter').addEventListener('change', function() {
+        window.location.href = '{{ url_for("removal.transfer_dashboard") }}?search=' + document.getElementById('searchInput').value + '&status=' + this.value;
+    });
+</script>
+{% endblock %}

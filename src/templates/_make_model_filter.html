@@ -1,0 +1,59 @@
+{# Dependent Vehicle Make -> Vehicle Model dropdown.
+
+   Include this once on any form that renders both `vehicle_make` and
+   `vehicle_model` selects, and pass `make_model_map` (see
+   VehicleModelService.get_make_model_map) from the route.
+
+   The server-side SelectField keeps every model in its choice list because
+   WTForms validates the submitted value against it - filtering there would
+   reject a perfectly valid model. So the narrowing happens here, on the
+   options actually shown. #}
+<script>
+    (function () {
+        const MAKE_MODELS = {{ make_model_map | default({}) | tojson }};
+
+        function applyMakeFilter(makeSelect, modelSelect) {
+            const make = (makeSelect.value || '').trim();
+            const current = modelSelect.value;
+            const models = MAKE_MODELS[make];
+
+            modelSelect.innerHTML = '';
+
+            if (!make) {
+                modelSelect.appendChild(new Option('Select a make first', ''));
+                modelSelect.disabled = true;
+                return;
+            }
+
+            modelSelect.disabled = false;
+
+            if (!models || models.length === 0) {
+                modelSelect.appendChild(new Option('No models registered for ' + make, ''));
+                return;
+            }
+
+            modelSelect.appendChild(new Option('Select Model', ''));
+            models.forEach(function (name) {
+                modelSelect.appendChild(new Option(name, name));
+            });
+
+            // Keep the existing selection when editing a PO whose model still
+            // belongs to the chosen make; otherwise leave it unset rather than
+            // quietly swapping in someone else's model.
+            if (current && models.indexOf(current) !== -1) {
+                modelSelect.value = current;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const makeSelect = document.querySelector('#vehicle_make, [name="vehicle_make"]');
+            const modelSelect = document.querySelector('#vehicle_model, [name="vehicle_model"]');
+            if (!makeSelect || !modelSelect) { return; }
+
+            applyMakeFilter(makeSelect, modelSelect);
+            makeSelect.addEventListener('change', function () {
+                applyMakeFilter(makeSelect, modelSelect);
+            });
+        });
+    })();
+</script>

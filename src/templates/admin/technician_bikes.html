@@ -1,0 +1,36 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-motorcycle" style="color: var(--odoo-primary);"></i> Technician Bikes</h1>
+    <div class="o_search_bar">
+        <a href="{{ url_for('admin.technician_bike_add') }}" class="o_button"><i class="fas fa-plus"></i> Assign Bike</a>
+    </div>
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr><th>Technician</th><th>Registration</th><th>IMEI</th><th>Model</th><th>Efficiency</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for bike in bikes %}
+                <tr class="o_list_record">
+                    <td>{{ bike.technician.name if bike.technician else '-' }}</td>
+                    <td>{{ bike.bike_registration }}</td>
+                    <td>{{ bike.imei }}</td>
+                    <td>{{ bike.bike_model or '-' }}</td>
+                    <td>{{ bike.fuel_efficiency }} km/L</td>
+                    <td><span class="o_badge {% if bike.is_active %}o_badge_success{% else %}o_badge_danger{% endif %}">{{ 'Active' if bike.is_active else 'Inactive' }}</span></td>
+                    <td>
+                        <a href="{{ url_for('admin.technician_bike_edit', id=bike.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit Technician Bike" aria-label="Edit Technician Bike"><i class="fas fa-pencil-alt"></i></a>
+                        <form method="POST" action="{{ url_for('admin.technician_bike_delete', id=bike.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete Technician Bike" aria-label="Delete Technician Bike"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

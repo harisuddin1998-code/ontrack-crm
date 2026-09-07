@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid" style="max-width: 1000px; margin: 0 auto;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="headphones" class="lucide-icon" style="width: 26px; height: 26px; color: var(--odoo-primary);"></i>
+                {{ title }}
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 13.5px;">
+                Search by registration number, phone, IMEI, or SIM to auto-pull customer &amp; vehicle details into the ticket
+            </p>
+        </div>
+        <a href="{{ url_for('complaint.dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="arrow-left" class="lucide-icon"></i> Back to Complaints
+        </a>
+    </div>
+
+    <!-- Form View -->
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h3 class="o_form_title" style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="clipboard-list" class="lucide-icon"></i> Log New Customer Complaint Ticket
+            </h3>
+            <div class="o_form_subtitle">Auto-populates customer &amp; vehicle records from system database - reporting and non-reporting alike</div>
+        </div>
+
+        <div class="o_form_body">
+            <form method="POST" action="">
+                {{ form.hidden_tag() }}
+                <input type="hidden" name="reg_no" id="regNoInput" value="{{ form.reg_no.data or '' }}">
+
+                <!-- Vehicle / Customer Live Search -->
+                <div style="background: var(--odoo-primary-soft); padding: 16px; border-radius: 10px; border: 1px solid var(--odoo-primary-light); margin-bottom: 20px;">
+                    <label class="o_field_label" style="color: var(--odoo-primary-dark); font-size: 12px; font-weight: 700;">
+                        <i data-lucide="search" class="lucide-icon" style="color: var(--odoo-primary);"></i> SEARCH VEHICLE / CUSTOMER (REG NO, PHONE, IMEI, OR SIM)
+                    </label>
+                    <div class="vehicle-search-wrap" style="position: relative; margin-top: 4px;">
+                        <input type="text" id="vehicleSearchInput" class="o_field_widget" style="width: 100%;"
+                               placeholder="Start typing a reg no, phone number, IMEI, or SIM..." autocomplete="off">
+                        <div id="searchResultsDropdown" class="vehicle-search-dropdown"></div>
+                    </div>
+
+                    {# How much of the fleet this box can see. "No results"
+                       otherwise reads the same whether the vehicle is not on
+                       the roster or the local copy of the roster has never
+                       been taken. #}
+                    <div class="vehicle-search-scope">
+                        <span>
+                            <i data-lucide="database" class="lucide-icon"></i>
+                            {% if registry_count %}
+                            Searching {{ '{:,}'.format(registry_count) }} vehicles on the master roster{% if registry_synced_at %},
+                            copied {{ registry_synced_at.strftime('%d %b %Y %H:%M') }}{% endif %}
+                            {% else %}
+                            The master vehicle roster has not been copied yet - only vehicles with local records are searchable
+                            {% endif %}
+                        </span>
+                        {% if can_sync_registry %}
+                        <form method="POST" action="{{ url_for('complaint.sync_vehicle_registry') }}" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="vehicle-search-refresh" title="Refresh the vehicle list from SJ_MIS">
+                                <i data-lucide="refresh-cw" class="lucide-icon"></i> Refresh
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Customer Details Group -->
+                <div class="o_form_group">
+                    <div>
+                        <label class="o_field_label">CUSTOMER / CLIENT NAME *</label>
+                        {{ form.customer_name(class="o_field_widget", id="customerNameInput", placeholder="CUSTOMER NAME") }}
+                    </div>
+                    <div>
+                        <label class="o_field_label">CONTACT PHONE *</label>
+                        {{ form.customer_contact(class="o_field_widget", id="customerContactInput", placeholder="CONTACT PHONE") }}
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div>
+                        <label class="o_field_label">CITY</label>
+                        {{ form.city(class="o_field_widget", id="cityInput", placeholder="CITY (e.g. LAHORE)") }}
+                    </div>
+                    <div>
+                        <label class="o_field_label">UNIT / DEVICE LOCATION</label>
+                        {{ form.vehicle_location(class="o_field_widget", id="vehicleLocationInput", placeholder="e.g. CENTER DASHBOARD, STEERING BOX") }}
+                    </div>
+                </div>
+
+                <!-- Vehicle Details, pulled from the system of record.
+                     These used to sit in a scrolling strip under the search
+                     box, where they read as a search result rather than as
+                     part of the ticket being written. They are read-only: the
+                     ticket stores the registration number, and the vehicle's
+                     own record is the authority for everything else. -->
+                <div id="vehicleDetailsSection" class="vehicle-details" style="display: none;">
+                    <div class="vehicle-details-head">
+                        <span><i data-lucide="car" class="lucide-icon"></i> VEHICLE DETAILS</span>
+                        <span class="vehicle-details-note">Pulled from the vehicle's system record</span>
+                    </div>
+                    <div class="vehicle-details-grid">
+                        <div>
+                            <label class="o_field_label">REPORTING STATUS</label>
+                            <input type="text" id="vdReportingStatus" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">MANUFACTURER</label>
+                            <input type="text" id="vdManufacturer" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">BRAND</label>
+                            <input type="text" id="vdBrand" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">YEAR / MODEL</label>
+                            <input type="text" id="vdModelYear" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">COLOR</label>
+                            <input type="text" id="vdColor" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">TRANSMISSION</label>
+                            <input type="text" id="vdTransmission" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">POWER CC</label>
+                            <input type="text" id="vdPowerCc" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">IMEI NO</label>
+                            <input type="text" id="vdImei" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">SIM NO</label>
+                            <input type="text" id="vdSim" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">CHASSIS NO</label>
+                            <input type="text" id="vdChassis" class="o_field_widget" readonly>
+                        </div>
+                        <div>
+                            <label class="o_field_label">ENGINE NO</label>
+                            <input type="text" id="vdEngine" class="o_field_widget" readonly>
+                        </div>
+                        <div class="vehicle-details-wide">
+                            <label class="o_field_label">LAST SERVICE</label>
+                            <input type="text" id="vdLastService" class="o_field_widget" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div>
+                        <label class="o_field_label">ASSIGN SUPPORT TECHNICIAN (OPTIONAL)</label>
+                        {{ form.technician_id(class="o_field_widget") }}
+                    </div>
+                    <div></div>
+                </div>
+
+                <!-- Ticket Type & Severity -->
+                <div class="o_form_group">
+                    <div>
+                        <label class="o_field_label">COMPLAINT CATEGORY *</label>
+                        {{ form.complaint_type(class="o_field_widget") }}
+                    </div>
+                    <div>
+                        <label class="o_field_label">SEVERITY LEVEL *</label>
+                        {{ form.severity(class="o_field_widget") }}
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div style="margin-bottom: 24px;">
+                    <label class="o_field_label">DETAILED COMPLAINT DESCRIPTION *</label>
+                    {{ form.description(class="o_field_widget", rows="5", placeholder="DESCRIBE THE ISSUE IN DETAIL...") }}
+                </div>
+
+                <!-- Form Actions -->
+                <div class="o_action_bar" style="justify-content: flex-end;">
+                    <a href="{{ url_for('complaint.dashboard') }}" class="pastel-btn-secondary">
+                        <i data-lucide="x"></i> Cancel
+                    </a>
+                    <button type="submit" class="pastel-btn-primary">
+                        <i data-lucide="check"></i> Submit Ticket
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.vehicle-search-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border: 1px solid var(--odoo-border);
+    border-radius: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.14);
+    z-index: 60;
+    display: none;
+}
+.search-result-item {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--odoo-border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--odoo-text);
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--odoo-primary-soft); }
+.search-result-item .sr-reg { font-weight: 700; color: var(--odoo-primary-dark); }
+.search-result-item .sr-muted { color: var(--odoo-text-light); }
+.search-result-empty, .search-result-hint {
+    padding: 14px;
+    text-align: center;
+    color: var(--odoo-text-light);
+    font-size: 12.5px;
+}
+.vehicle-search-scope {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--odoo-text-light);
+}
+.vehicle-search-scope .lucide-icon { width: 12px; height: 12px; }
+.vehicle-search-refresh {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--odoo-primary-dark);
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.vehicle-search-refresh:hover { text-decoration: underline; }
+
+/* Vehicle Details reads as part of the form, not as a search result:
+   the same labelled fields on the same grid as everything else, only
+   read-only, because the vehicle's own record is the authority. */
+.vehicle-details { margin-bottom: 24px; }
+.vehicle-details-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--odoo-primary-dark);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--odoo-border);
+}
+.vehicle-details-head .lucide-icon { width: 14px; height: 14px; }
+.vehicle-details-note {
+    font-weight: 400;
+    text-transform: none;
+    color: var(--odoo-text-light);
+}
+.vehicle-details-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 20px;
+}
+.vehicle-details-wide { grid-column: 1 / -1; }
+@media (max-width: 900px) { .vehicle-details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .vehicle-details-grid { grid-template-columns: 1fr; } }
+/* Readable, but visibly not yours to type in. */
+.vehicle-details input[readonly] {
+    background: var(--odoo-primary-soft);
+    border-style: dashed;
+    cursor: default;
+}
+</style>
+
+<script>
+const VEHICLE_SEARCH_URL = "{{ url_for('complaint.api_vehicle_search') }}";
+let vehicleSearchDebounce = null;
+let vehicleSearchResults = [];
+let vehicleSearchRequestSeq = 0;
+
+function escapeHtml(value) {
+    return (value || '').toString().replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+}
+
+function renderSearchDropdown(results) {
+    const dropdown = document.getElementById('searchResultsDropdown');
+    if (!results.length) {
+        dropdown.innerHTML = '<div class="search-result-empty">No matching vehicle or customer found</div>';
+        dropdown.style.display = 'block';
+        return;
+    }
+    dropdown.innerHTML = results.map((r, idx) => `
+        <div class="search-result-item" data-idx="${idx}">
+            <span class="sr-reg">${escapeHtml(r.registration_no || 'N/A')}</span>
+            <span>${escapeHtml(r.customer_name || 'Unknown Customer')}</span>
+            <span class="sr-muted">${escapeHtml(r.customer_contact || '')}</span>
+            <span class="sr-muted">${escapeHtml([r.manufacturer, r.brand].filter(Boolean).join(' ') )}</span>
+            <span style="margin-left:auto; font-weight:700; color:${r.is_reporting ? '#16a34a' : '#dc2626'};">${escapeHtml(r.reporting_status || '')}</span>
+        </div>
+    `).join('');
+    dropdown.style.display = 'block';
+    dropdown.querySelectorAll('.search-result-item').forEach(el => {
+        el.addEventListener('click', () => selectVehicleResult(vehicleSearchResults[parseInt(el.dataset.idx, 10)]));
+    });
+}
+
+function selectVehicleResult(record) {
+    if (!record) return;
+    vehicleSearchResults = [];
+    document.getElementById('searchResultsDropdown').style.display = 'none';
+    document.getElementById('vehicleSearchInput').value = record.registration_no || '';
+    document.getElementById('regNoInput').value = record.registration_no || '';
+
+    if (record.customer_name) document.getElementById('customerNameInput').value = record.customer_name;
+    if (record.customer_contact) document.getElementById('customerContactInput').value = record.customer_contact;
+    if (record.city) document.getElementById('cityInput').value = record.city;
+    if (record.unit_location) document.getElementById('vehicleLocationInput').value = record.unit_location;
+
+    populateVehicleDetails(record);
+}
+
+/* The pulled vehicle record fills the fields in the form rather than a strip
+   under the search box. Values are written to inputs, so nothing here builds
+   markup out of them. */
+function populateVehicleDetails(record) {
+    const values = {
+        vdReportingStatus: record.reporting_status || '-',
+        vdManufacturer: record.manufacturer || '-',
+        vdBrand: record.brand || '-',
+        vdModelYear: record.model_year || '-',
+        vdColor: record.color || '-',
+        // Not recorded on most of the fleet: SJ_MIS has the columns and
+        // barely fills them, so say so rather than showing an empty box.
+        vdTransmission: record.transmission || 'Not recorded',
+        vdPowerCc: record.power_cc || 'Not recorded',
+        vdImei: record.imei_no || '-',
+        vdSim: record.sim_no || '-',
+        vdChassis: record.chassis_no || '-',
+        vdEngine: record.engine_no || '-',
+        vdLastService: record.last_service_by || 'None Recorded',
+    };
+    Object.keys(values).forEach(function(id) {
+        const field = document.getElementById(id);
+        if (field) { field.value = values[id]; }
+    });
+
+    // Whether the vehicle is talking to us is the one thing on this panel a
+    // support agent acts on, so it keeps its colour.
+    const status = document.getElementById('vdReportingStatus');
+    if (status) { status.style.color = record.is_reporting ? '#16a34a' : '#dc2626'; }
+
+    document.getElementById('vehicleDetailsSection').style.display = 'block';
+    if (window.lucide) { lucide.createIcons(); }
+}
+
+/* A fresh query invalidates the vehicle that was showing. */
+function clearVehicleDetails() {
+    const section = document.getElementById('vehicleDetailsSection');
+    if (!section) return;
+    section.querySelectorAll('input').forEach(function(field) { field.value = ''; });
+    section.style.display = 'none';
+}
+
+function searchVehicles(query) {
+    const seq = ++vehicleSearchRequestSeq;
+    fetch(`${VEHICLE_SEARCH_URL}?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (seq !== vehicleSearchRequestSeq) return; // a newer keystroke superseded this request
+            vehicleSearchResults = data.results || [];
+            renderSearchDropdown(vehicleSearchResults);
+        })
+        .catch(err => console.error('Vehicle search error:', err));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('vehicleSearchInput');
+    const dropdown = document.getElementById('searchResultsDropdown');
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', function() {
+        const q = this.value.trim();
+        // Typing a fresh query invalidates any previously selected vehicle.
+        document.getElementById('regNoInput').value = '';
+        clearVehicleDetails();
+        clearTimeout(vehicleSearchDebounce);
+
+        if (q.length < 2) {
+            dropdown.style.display = 'none';
+            return;
+        }
+        vehicleSearchDebounce = setTimeout(() => searchVehicles(q), 200);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.vehicle-search-wrap')) {
+            dropdown.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

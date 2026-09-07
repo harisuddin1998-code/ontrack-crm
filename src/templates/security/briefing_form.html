@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-shield-alt" style="color: var(--odoo-primary);"></i>
+        Security Briefing - {{ briefing.registration_no or 'New' }}
+    </h1>
+
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Security Briefing Form</h2>
+            <p class="o_form_subtitle">Single page layout — Press TAB to cycle through all editable fields</p>
+        </div>
+        
+        <div class="o_form_body">
+            <form method="POST" action="">
+                {{ form.hidden_tag() }}
+                
+                <!-- Section 1: Customer Information -->
+                <h3 style="color: var(--odoo-primary); margin-bottom: 16px; border-bottom: 2px solid var(--odoo-border); padding-bottom: 8px;">
+                    <i class="fas fa-user-tie"></i> 1. Customer Information
+                </h3>
+                
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Customer Name (Read-Only)</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.customer_name or 'N/A' }}" disabled tabindex="-1">
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Primary Phone (Read-Only)</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.phone or 'N/A' }}" disabled tabindex="-1">
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.cnic.label }}</label>
+                        {{ form.cnic(class="o_field_widget", placeholder="xxxxx-xxxxxxx-x", tabindex="1") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.address.label }}</label>
+                        {{ form.address(class="o_field_widget", placeholder="Enter customer address", tabindex="2") }}
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.father_name.label }}</label>
+                        {{ form.father_name(class="o_field_widget", placeholder="Father's name", tabindex="3") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.mother_name.label }}</label>
+                        {{ form.mother_name(class="o_field_widget", placeholder="Mother's name", tabindex="4") }}
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.secondary_user_name.label }}</label>
+                        {{ form.secondary_user_name(class="o_field_widget", placeholder="Secondary user name", tabindex="5") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.secondary_user_phone.label }}</label>
+                        {{ form.secondary_user_phone(class="o_field_widget", placeholder="Secondary user phone", tabindex="6") }}
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.emergency_user_name.label }}</label>
+                        {{ form.emergency_user_name(class="o_field_widget", placeholder="Emergency contact name", tabindex="7") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.emergency_user_phone.label }}</label>
+                        {{ form.emergency_user_phone(class="o_field_widget", placeholder="Emergency contact phone", tabindex="8") }}
+                    </div>
+                </div>
+
+                <!-- Section 2: Vehicle & Installation Information -->
+                <h3 style="color: var(--odoo-primary); margin-top: 24px; margin-bottom: 16px; border-bottom: 2px solid var(--odoo-border); padding-bottom: 8px;">
+                    <i class="fas fa-car"></i> 2. Vehicle & Installation Information
+                </h3>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Registration No</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.registration_no or 'N/A' }}" disabled tabindex="-1">
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.segment.label }}</label>
+                        {{ form.segment(class="o_field_widget", tabindex="9") }}
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Manufacturer / Brand / Year / Model</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.make or '-' }} / {{ briefing.model or '-' }} / {{ briefing.year or '-' }}" disabled tabindex="-1">
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Color / Engine / Chassis</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.color or '-' }} | Eng: {{ briefing.engine_no or '-' }} | Ch: {{ briefing.chassis_no or '-' }}" disabled tabindex="-1">
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Technician Assigned</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.technician_name or 'N/A' }}" disabled tabindex="-1">
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Installation Date</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.installation_date or 'N/A' }}" disabled tabindex="-1">
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Device IMEI</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.imei_no or 'N/A' }}" disabled tabindex="-1">
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">SIM Number & Network</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.sim_no or '-' }} ({{ briefing.sim_network or '-' }})" disabled tabindex="-1">
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Device Location</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.device_location or 'N/A' }}" disabled tabindex="-1">
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Accessories Installed</label>
+                        <input type="text" class="o_field_widget" value="{{ briefing.accessories_installed or 'None' }}" disabled tabindex="-1">
+                    </div>
+                </div>
+
+                <!-- Section 3: Passwords & Credentials -->
+                <h3 style="color: var(--odoo-primary); margin-top: 24px; margin-bottom: 16px; border-bottom: 2px solid var(--odoo-border); padding-bottom: 8px;">
+                    <i class="fas fa-key"></i> 3. Passwords & Configuration
+                </h3>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.password_1.label }}</label>
+                        {{ form.password_1(class="o_field_widget", placeholder="Primary Portal Password", tabindex="10") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.password_2.label }}</label>
+                        {{ form.password_2(class="o_field_widget", placeholder="Secondary Command Password", tabindex="11") }}
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.fence.label }}</label>
+                        {{ form.fence(class="o_field_widget", placeholder="e.g. Lahore City limits radius 5km", tabindex="12") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.services.label }}</label>
+                        {{ form.services(class="o_field_widget", rows="2", placeholder="Subscribed tracking features and alert preferences", tabindex="13") }}
+                    </div>
+                </div>
+
+                <!-- Section 4: Briefing Checklist & Status -->
+                <h3 style="color: var(--odoo-primary); margin-top: 24px; margin-bottom: 16px; border-bottom: 2px solid var(--odoo-border); padding-bottom: 8px;">
+                    <i class="fas fa-check-double"></i> 4. Security Briefing Checklist & Status
+                </h3>
+
+                <div class="o_checklist_container" style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; background: var(--odoo-primary-soft); padding: 18px; border-radius: 8px; border-left: 4px solid var(--odoo-primary);">
+                    <div class="o_checkbox_item" style="display: flex; align-items: center; gap: 12px;">
+                        {{ form.security_training_completed(style="width: 20px; height: 20px; cursor: pointer;", tabindex="14") }}
+                        <label style="font-weight: 600; cursor: pointer;" for="security_training_completed">Security Training Completed</label>
+                    </div>
+                    <div class="o_checkbox_item" style="display: flex; align-items: center; gap: 12px;">
+                        {{ form.customer_demonstration(style="width: 20px; height: 20px; cursor: pointer;", tabindex="15") }}
+                        <label style="font-weight: 600; cursor: pointer;" for="customer_demonstration">Customer Live Demonstration Completed</label>
+                    </div>
+                    <div class="o_checkbox_item" style="display: flex; align-items: center; gap: 12px;">
+                        {{ form.services_explained(style="width: 20px; height: 20px; cursor: pointer;", tabindex="16") }}
+                        <label style="font-weight: 600; cursor: pointer;" for="services_explained">Services and Renewal Charges Explained</label>
+                    </div>
+                    <div class="o_checkbox_item" style="display: flex; align-items: center; gap: 12px;">
+                        {{ form.acknowledgement(style="width: 20px; height: 20px; cursor: pointer;", tabindex="17") }}
+                        <label style="font-weight: 600; cursor: pointer;" for="acknowledgement">Customer Terms Acknowledgement Accepted</label>
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.status.label }}</label>
+                        {{ form.status(class="o_field_widget", tabindex="18") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Briefing Officer</label>
+                        <input type="text" class="o_field_widget" value="{{ current_user.username.upper() }}" disabled tabindex="-1">
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group" style="flex: 2;">
+                        <label class="o_field_label">{{ form.officer_notes.label }}</label>
+                        {{ form.officer_notes(class="o_field_widget", rows="3", placeholder="Enter briefing notes or special customer requests...", tabindex="19") }}
+                    </div>
+                </div>
+
+                <div class="o_action_bar" style="margin-top: 32px;">
+                    <a href="{{ url_for('security.dashboard') }}" class="o_button o_button_secondary" tabindex="21">Cancel</a>
+                    <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="Save Security Briefing" aria-label="Save Security Briefing" tabindex="20"><i class="fas fa-floppy-disk"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

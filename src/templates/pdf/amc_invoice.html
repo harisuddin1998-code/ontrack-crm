@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>AMC Invoice - {{ invoice_number }}</title>
+    <style>
+        /* Laid out in tables throughout, like the other two documents the CRM
+           issues. wkhtmltopdf runs an old WebKit whose flex and grid support
+           is unreliable, and an invoice that reflows differently on the
+           customer's copy than on the screen it was approved from is worse
+           than a plain one. */
+        /* No @page margin: wkhtmltopdf takes the page box from its own
+           --margin-* options (see PDFService._render_amc_invoice) and
+           ignores this rule, so setting it here would only be a second,
+           silently inactive answer to the same question. */
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #2B3245;
+            margin: 0;
+            font-size: 11px;
+            line-height: 1.45;
+        }
+
+        /* ---------- masthead ---------- */
+        .masthead {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 3px solid #3B5599;
+        }
+
+        .masthead td {
+            vertical-align: middle;
+            padding: 0 0 12px 0;
+        }
+
+        /* Height only, no width - a width alongside it makes wkhtmltopdf
+           stretch the mark to both and squash the logo out of proportion. */
+        .logo {
+            height: 58px;
+            width: auto;
+        }
+
+        .masthead .mark-cell {
+            width: 92px;
+        }
+
+        .company-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1F2637;
+            letter-spacing: 0.4px;
+        }
+
+        .company-line {
+            font-size: 9.5px;
+            color: #6B7385;
+            line-height: 1.55;
+        }
+
+        .company-reg {
+            font-size: 9.5px;
+            color: #6B7385;
+            font-weight: bold;
+            letter-spacing: 0.3px;
+        }
+
+        .masthead .doc-cell {
+            text-align: right;
+            width: 34%;
+        }
+
+        .doc-word {
+            font-size: 27px;
+            font-weight: bold;
+            color: #3B5599;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            line-height: 1.1;
+        }
+
+        .doc-sub {
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #8A93A8;
+            padding-top: 3px;
+        }
+
+        /* ---------- bill-to / invoice meta ---------- */
+        .parties {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .parties > tbody > tr > td {
+            vertical-align: top;
+            width: 50%;
+            padding: 0;
+        }
+
+        .parties .gap {
+            width: 12px;
+        }
+
+        .panel {
+            border: 1px solid #C6CFE4;
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .panel .head {
+            background: #3B5599;
+            color: #FFFFFF;
+            font-size: 9px;
+            font-weight: bold;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            padding: 6px 10px;
+        }
+
+        .panel td {
+            padding: 5px 10px;
+            font-size: 10.5px;
+        }
+
+        .panel td.k {
+            color: #6B7385;
+            width: 42%;
+        }
+
+        .panel td.v {
+            font-weight: bold;
+            color: #1F2637;
+        }
+
+        .panel .bill-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #1F2637;
+        }
+
+        /* ---------- line items ---------- */
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        table.items th {
+            background: #3B5599;
+            color: #FFFFFF;
+            font-size: 9px;
+            font-weight: bold;
+            letter-spacing: 1.1px;
+            text-transform: uppercase;
+            padding: 8px 9px;
+            border: 1px solid #3B5599;
+            text-align: left;
+        }
+
+        table.items td {
+            border: 1px solid #D7DEEE;
+            padding: 6px 9px;
+            font-size: 10.5px;
+        }
+
+        /* Zebra striping so a long vehicle list stays readable across the
+           page - these invoices run to dozens of rows for a fleet client. */
+        table.items tr.alt td {
+            background: #F7F9FD;
+        }
+
+        table.items .num {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        table.items .mid {
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        table.items .reg {
+            font-weight: bold;
+            color: #1F2637;
+        }
+
+        /* ---------- totals ---------- */
+        .totals-wrap {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        .totals-wrap > tbody > tr > td {
+            vertical-align: top;
+            padding: 0;
+        }
+
+        table.totals {
+            border-collapse: collapse;
+            width: 260px;
+            margin-left: auto;
+        }
+
+        table.totals td {
+            padding: 6px 10px;
+            font-size: 11px;
+            border: 1px solid #D7DEEE;
+        }
+
+        table.totals td.k {
+            color: #4A5265;
+        }
+
+        table.totals td.v {
+            text-align: right;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        table.totals tr.discount td {
+            color: #9C4221;
+            background: #FEF6EC;
+        }
+
+        table.totals tr.due td {
+            background: #3B5599;
+            color: #FFFFFF;
+            font-size: 12px;
+            font-weight: bold;
+            border-color: #3B5599;
+        }
+
+        .amount-words {
+            font-size: 10px;
+            color: #4A5265;
+            padding-top: 8px;
+        }
+
+        .amount-words .k {
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            font-size: 9px;
+            color: #8A93A8;
+        }
+
+        /* ---------- payment details / terms ---------- */
+        .lower {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 18px;
+        }
+
+        .lower > tbody > tr > td {
+            vertical-align: top;
+            padding: 0;
+        }
+
+        .lower .gap {
+            width: 12px;
+        }
+
+        .lower .pay-cell {
+            width: 44%;
+        }
+
+        .block-head {
+            background: #EEF2FA;
+            border: 1px solid #C6CFE4;
+            border-bottom: 0;
+            color: #2B3245;
+            font-size: 9px;
+            font-weight: bold;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            padding: 6px 10px;
+        }
+
+        .block-body {
+            border: 1px solid #C6CFE4;
+            padding: 8px 10px;
+            font-size: 10px;
+            color: #2B3245;
+        }
+
+        table.bank {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.bank td {
+            padding: 3px 0;
+            font-size: 10px;
+            vertical-align: top;
+        }
+
+        table.bank td.k {
+            color: #6B7385;
+            width: 42%;
+        }
+
+        table.bank td.v {
+            font-weight: bold;
+            color: #1F2637;
+        }
+
+        /* Numbered terms without <ol>, whose default indent wkhtmltopdf
+           renders inconsistently against a bordered box. */
+        table.terms {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.terms td {
+            padding: 2px 0;
+            font-size: 9.5px;
+            color: #2B3245;
+            vertical-align: top;
+        }
+
+        table.terms td.n {
+            width: 14px;
+            color: #6B7385;
+            font-weight: bold;
+        }
+
+        /* ---------- footer ---------- */
+        .thanks {
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            color: #1F2637;
+            padding-top: 16px;
+        }
+
+        .footer-note {
+            text-align: center;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #E2E8F4;
+            font-size: 9px;
+            color: #8A93A8;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+    <table class="masthead">
+        <tr>
+            <td class="mark-cell">
+                {% if logo_path %}
+                <img src="{{ logo_path }}" class="logo" alt="Ontrack">
+                {% endif %}
+            </td>
+            <td>
+                <div class="company-name">ONTRACK (PVT.) LIMITED</div>
+                <div class="company-line">
+                    Plot No. 25-C, Old Sunset Boulevard Phase 2, DHA Karachi<br>
+                    Email: info@on-tracking.com | Phone: +92 21 35895612
+                </div>
+                <div class="company-reg">NTN: 8924453 &nbsp;|&nbsp; STRN: 3277876194122</div>
+            </td>
+            <td class="doc-cell">
+                <div class="doc-word">Invoice</div>
+                <div class="doc-sub">Annual Monitoring Charges</div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="parties">
+        <tr>
+            <td>
+                <table class="panel">
+                    <tr>
+                        <td class="head" colspan="2">Bill To</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2"><span class="bill-name">{{ client_name }}</span></td>
+                    </tr>
+                    {% if client_contact %}
+                    <tr>
+                        <td class="k">Contact</td>
+                        <td class="v">{{ client_contact }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td class="k">Vehicles Billed</td>
+                        <td class="v">{{ items|length }}</td>
+                    </tr>
+                </table>
+            </td>
+            <td class="gap"></td>
+            <td>
+                <table class="panel">
+                    <tr>
+                        <td class="head" colspan="2">Invoice Details</td>
+                    </tr>
+                    <tr>
+                        <td class="k">Invoice No.</td>
+                        <td class="v">{{ invoice_number }}</td>
+                    </tr>
+                    <tr>
+                        <td class="k">Invoice Date</td>
+                        <td class="v">{{ invoice_date }}</td>
+                    </tr>
+                    <tr>
+                        <td class="k">Billing Basis</td>
+                        <td class="v">{{ basis_label }}</td>
+                    </tr>
+                    {% if sheet_name %}
+                    <tr>
+                        <td class="k">Sheet / Batch</td>
+                        <td class="v">{{ sheet_name }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <table class="items">
+        <thead>
+            <tr>
+                <th style="width: 34px;">S/No.</th>
+                <th>Registration No.</th>
+                <th style="width: 96px;">Installation Date</th>
+                <th style="width: 96px;">Validity</th>
+                <th style="width: 104px; text-align: right;">Amount (PKR)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr {% if loop.index is divisibleby 2 %}class="alt" {% endif %}>
+                <td class="mid">{{ loop.index }}</td>
+                <td class="reg">{{ item.reg_no }}</td>
+                <td class="mid">{{ item.installation_date }}</td>
+                <td class="mid">{{ item.validity }}</td>
+                <td class="num">{{ item.amount }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="totals-wrap">
+        <tr>
+            <td>
+                <div class="amount-words">
+                    <div class="k">Amount in Words</div>
+                    {{ amount_in_words }}
+                </div>
+            </td>
+            <td>
+                <table class="totals">
+                    <tr>
+                        <td class="k">Total AMC Charges</td>
+                        <td class="v">{{ total_charges }}</td>
+                    </tr>
+                    <tr>
+                        <td class="k">Less: Amount Received</td>
+                        <td class="v">({{ total_received }})</td>
+                    </tr>
+                    {# The concession is printed, not folded silently into the
+                       total. A customer who agreed a reduced settlement needs
+                       to see it on the document, and so does anyone
+                       reconciling this invoice against the ledger later. #}
+                    {% if has_discount %}
+                    <tr>
+                        <td class="k">Outstanding Balance</td>
+                        <td class="v">{{ outstanding }}</td>
+                    </tr>
+                    <tr class="discount">
+                        <td class="k">Less: Discount Allowed</td>
+                        <td class="v">({{ discount }})</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="due">
+                        <td class="k">Balance Due</td>
+                        <td class="v">{{ balance_due }}</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <table class="lower">
+        <tr>
+            <td class="pay-cell">
+                <div class="block-head">Payment Details</div>
+                <div class="block-body">
+                    <table class="bank">
+                        <tr>
+                            <td class="k">Bank Name</td>
+                            <td class="v">Faysal Bank Limited</td>
+                        </tr>
+                        <tr>
+                            <td class="k">Account Title</td>
+                            <td class="v">ONTRACK (PVT.) LIMITED</td>
+                        </tr>
+                        <tr>
+                            <td class="k">Account Number</td>
+                            <td class="v">0198007900225279</td>
+                        </tr>
+                        <tr>
+                            <td class="k">IBAN</td>
+                            <td class="v">PK61FAYS0198007900225279</td>
+                        </tr>
+                        <tr>
+                            <td class="k">Branch</td>
+                            <td class="v">DHA Phase 2, Karachi</td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+            <td class="gap"></td>
+            <td>
+                <div class="block-head">Terms &amp; Conditions</div>
+                <div class="block-body">
+                    <table class="terms">
+                        <tr>
+                            <td class="n">1.</td>
+                            <td>Payment is due immediately upon receipt of invoice.</td>
+                        </tr>
+                        <tr>
+                            <td class="n">2.</td>
+                            <td>Services will be activated upon confirmation of payment.</td>
+                        </tr>
+                        <tr>
+                            <td class="n">3.</td>
+                            <td>All prices are in Pakistani Rupees (PKR).</td>
+                        </tr>
+                        <tr>
+                            <td class="n">4.</td>
+                            <td>Late payments may be subject to penalty charges.</td>
+                        </tr>
+                        <tr>
+                            <td class="n">5.</td>
+                            <td>This is a computer-generated invoice and requires no signature.</td>
+                        </tr>
+                        <tr>
+                            <td class="n">6.</td>
+                            <td>For any discrepancies, please contact within 7 days of receipt.</td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="thanks">Thank you for your business!</div>
+    <div class="footer-note">
+        Contact: +92 21 35895612 | Email: info@on-tracking.com<br>
+        This is an electronically generated invoice and requires no signatures or endorsements.
+    </div>
+</body>
+
+</html>

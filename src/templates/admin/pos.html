@@ -1,0 +1,67 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title" style="display: flex; align-items: center; gap: 8px;"><i data-lucide="file-spreadsheet" style="color: var(--odoo-primary);"></i> Purchase Orders</h1>
+    <div class="o_search_bar" style="margin-bottom: 20px;">
+        <input type="text" class="o_search_input" placeholder="Search by PO, Customer, Registration..." id="searchInput" value="{{ search }}">
+        <select class="o_filter_select" id="statusFilter">
+            <option value="">All Status</option>
+            <option value="PENDING" {% if status == 'PENDING' %}selected{% endif %}>Pending</option>
+            <option value="IN_PROGRESS" {% if status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+            <option value="COMPLETED" {% if status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+            <option value="CANCELLED" {% if status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
+        </select>
+        <a href="{{ url_for('admin.pos_list') }}" class="pastel-btn-secondary" style="padding: 6px 12px;"><i data-lucide="refresh-cw"></i> Reset</a>
+        <a href="{{ url_for('admin.po_bulk_update') }}" class="pastel-btn-secondary" style="padding: 6px 12px;"><i data-lucide="upload"></i> Bulk Update</a>
+        <a href="{{ url_for('admin.po_add') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="Add PO" aria-label="Add PO"><i data-lucide="plus"></i></a>
+    </div>
+
+    {# Arrived from a dashboard "today" card. Say so, or a list of 4 rows out
+       of 900 looks like the page is broken rather than filtered. #}
+    {% if created == 'today' %}
+    <div class="o_alert o_alert_info" style="margin-bottom: 16px;">
+        <i data-lucide="calendar-clock"></i>
+        Showing only purchase orders from today{% if status %} with status <strong>{{ status }}</strong>{% endif %}
+        ({{ total|count_fmt }}).
+        <a href="{{ url_for('admin.pos_list', status=status) }}">Show all</a>
+    </div>
+    {% endif %}
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr><th>PO Number</th><th>Customer</th><th>Registration</th><th>Vehicle</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for po in orders %}
+                <tr class="o_list_record">
+                    <td><strong>{{ po.po_number }}</strong></td>
+                    <td>{{ po.owner_name }}</td>
+                    <td>{{ po.reg_no }}</td>
+                    <td>{{ po.vehicle_make }} {{ po.vehicle_model }}</td>
+                    <td><span class="o_badge {% if po.status == 'COMPLETED' %}o_badge_success{% elif po.status == 'PENDING' %}o_badge_warning{% elif po.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_secondary{% endif %}">{{ po.status }}</span></td>
+                    <td>{{ po.created_at.strftime('%d/%m/%Y') if po.created_at else '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.po_detail', po_id=po.id) }}" class="o_icon_btn o_icon_btn_view" title="View Details" aria-label="View Details"><i data-lucide="eye"></i></a>
+                        <a href="{{ url_for('admin.po_edit', po_id=po.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit PO" aria-label="Edit PO"><i data-lucide="pencil"></i></a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align: center; color: var(--odoo-text-light);"><i data-lucide="inbox"></i> No purchase orders found</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.getElementById('searchInput').addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            window.location.href = '{{ url_for("admin.pos_list") }}?search=' + this.value + '&status=' + document.getElementById('statusFilter').value;
+        }
+    });
+    document.getElementById('statusFilter').addEventListener('change', function() {
+        window.location.href = '{{ url_for("admin.pos_list") }}?search=' + document.getElementById('searchInput').value + '&status=' + this.value;
+    });
+</script>
+{% endblock %}

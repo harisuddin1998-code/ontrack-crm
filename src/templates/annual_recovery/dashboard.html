@@ -1,0 +1,1571 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+
+    <!-- ==================== PAGE HEADER ==================== -->
+    <div class="ar-page-header">
+        <h1 class="o_page_title">
+            <i class="fas fa-hand-holding-usd" style="color: var(--odoo-primary);"></i> Annual Recovery Monitoring
+        </h1>
+        {# Uploading, assigning and the cross-sheet audit log are supervisor-only
+           (admin/manager). A recovery officer works the sheets assigned to them
+           and sees none of these. The routes enforce this too - hiding a button
+           is presentation, not permission. #}
+        {% if can_manage_sheets %}
+        <div class="ar-header-actions">
+            <button class="o_button o_button_secondary o_button_sm" onclick="openUploadModal()">
+                <i class="fas fa-file-excel"></i> Upload Excel
+            </button>
+            <button class="o_button o_button_secondary o_button_sm" onclick="openAssignSheetModal()">
+                <i class="fas fa-tasks"></i> Assign Sheets
+            </button>
+            <button class="o_button o_button_info o_button_sm" onclick="openAuditLogsModal()">
+                <i class="fas fa-history"></i> Audit Logs
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ==================== STATS CARDS ==================== -->
+    <div class="o_dashboard_cards ar-stats-grid">
+        <div class="o_dashboard_card o_card_primary">
+            <div class="o_card_header"><i class="fas fa-users"></i> Total Clients</div>
+            <div class="o_card_value" id="statTotalClients">--</div>
+            <div class="o_card_unit">clients</div>
+        </div>
+        <div class="o_dashboard_card o_card_info">
+            <div class="o_card_header"><i class="fas fa-car"></i> Total Vehicles</div>
+            <div class="o_card_value" id="statTotalVehicles">--</div>
+            <div class="o_card_unit">vehicles</div>
+        </div>
+        <div class="o_dashboard_card o_card_lavender">
+            <div class="o_card_header"><i class="fas fa-calculator"></i> Total AMC</div>
+            <div class="o_card_value" id="statTotalAmc">--</div>
+            <div class="o_card_unit">charges</div>
+        </div>
+        <div class="o_dashboard_card o_card_success">
+            <div class="o_card_header"><i class="fas fa-check-circle"></i> Recovered</div>
+            <div class="o_card_value" id="statTotalRecovered">--</div>
+            <div class="o_card_unit">amount</div>
+        </div>
+        <div class="o_dashboard_card o_card_warning">
+            <div class="o_card_header"><i class="fas fa-clock"></i> Outstanding</div>
+            <div class="o_card_value" id="statTotalOutstanding">--</div>
+            <div class="o_card_unit">balance</div>
+        </div>
+        <div class="o_dashboard_card o_card_danger">
+            <div class="o_card_header"><i class="fas fa-times-circle"></i> Lost</div>
+            <div class="o_card_value" id="statTotalLost">--</div>
+            <div class="o_card_unit">amount</div>
+        </div>
+    </div>
+
+    <!-- ==================== FILTER BAR ==================== -->
+    <div class="o_form_view ar-filter-bar">
+        <div class="o_form_header">
+            <div class="o_form_title"><i class="fas fa-filter"></i> Filters &amp; Search</div>
+        </div>
+        <div class="o_form_body">
+            <div class="ar-filter-grid">
+                <div class="o_field_group">
+                    <label class="o_field_label" for="searchInput">Search</label>
+                    <div class="ar-search-wrap">
+                        <i class="fas fa-search ar-search-icon"></i>
+                        <input type="text" id="searchInput" class="o_field_widget ar-search-input"
+                               placeholder="Client, Phone, Reg No..." onkeyup="debounceFilter()">
+                    </div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="sheetFilter">Sheet Name</label>
+                    <select id="sheetFilter" class="o_field_widget" onchange="loadStats(); loadClients();">
+                        <option value="">All Sheets</option>
+                    </select>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="statusFilter">Status</label>
+                    <select id="statusFilter" class="o_field_widget" onchange="loadClients()">
+                        <option value="">All Statuses</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="RECOVERED">Recovered</option>
+                        <option value="FOLLOWUP">Follow-up</option>
+                        <option value="LOST">Lost</option>
+                    </select>
+                </div>
+                {# Filtering by officer only means something to a supervisor -
+                   an officer's list is already just their own sheets. #}
+                {% if can_manage_sheets %}
+                <div class="o_field_group">
+                    <label class="o_field_label" for="assignedFilter">Assigned User</label>
+                    <select id="assignedFilter" class="o_field_widget" onchange="loadClients()">
+                        <option value="">All Users</option>
+                        <option value="unassigned">Unassigned</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.name or user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="o_field_group ar-filter-btn-group">
+                    <label class="o_field_label">&nbsp;</label>
+                    <button class="o_button o_button_secondary ar-reset-btn" onclick="resetFilters()">
+                        <i class="fas fa-undo"></i> Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== CLIENTS & VEHICLES LIST ==================== -->
+    <div id="clientsContainer">
+        <div class="ar-loading">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p>Loading recovery records...</p>
+        </div>
+    </div>
+
+</div>
+
+<!-- ==================== RECORD RECOVERY MODAL ==================== -->
+<div class="ar-modal-overlay" id="recoveryModal">
+    <div class="ar-modal">
+        <div class="ar-modal-header">
+            <h3><i class="fas fa-file-invoice-dollar"></i> Record Recovery Payment</h3>
+            <button class="ar-modal-close" onclick="closeRecoveryModal()" aria-label="Close">&times;</button>
+        </div>
+        <form id="recoveryForm" onsubmit="submitRecovery(event)">
+            <div class="ar-modal-body">
+                <input type="hidden" id="recVehicleId">
+
+                {# What is being paid, as a read-only summary rather than three
+                   disabled inputs. A greyed-out text box invites a click and
+                   then refuses it; a panel reads as context, which is what
+                   these three figures are. #}
+                <div class="ar-rec-summary">
+                    <div class="ar-rec-summary-item">
+                        <span class="ar-rec-summary-label">Vehicle</span>
+                        <span class="ar-rec-summary-value" id="recRegNo">&mdash;</span>
+                    </div>
+                    <div class="ar-rec-summary-item">
+                        <span class="ar-rec-summary-label">AMC Charges</span>
+                        <span class="ar-rec-summary-value" id="recAmc">&mdash;</span>
+                    </div>
+                    <div class="ar-rec-summary-item ar-rec-summary-due">
+                        <span class="ar-rec-summary-label">Outstanding</span>
+                        <span class="ar-rec-summary-value" id="recOutstanding">&mdash;</span>
+                    </div>
+                </div>
+
+                <div class="o_field_group">
+                    <label class="o_field_label" for="recAmount">Payment Amount</label>
+                    <div class="ar-amount-wrap">
+                        <span class="ar-amount-prefix">PKR</span>
+                        <input type="number" step="0.01" min="0.01" id="recAmount"
+                            class="o_field_widget ar-amount-field" required>
+                    </div>
+                </div>
+
+                <div class="ar-modal-row">
+                    <div class="o_field_group">
+                        <label class="o_field_label" for="recMethod">Payment Method</label>
+                        <select id="recMethod" class="o_field_widget" onchange="togglePaymentFields()">
+                            <option value="Online Payment">Online Payment</option>
+                            <option value="Cash Payment">Cash Payment</option>
+                            <option value="Cheque">Cheque</option>
+                        </select>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label" for="recReference"
+                            id="recReferenceLabel">Reference / Receipt No.</label>
+                        <input type="text" id="recReference" class="o_field_widget" placeholder="e.g. TRX-982341">
+                    </div>
+                </div>
+
+                <div id="chequeFieldGroup" class="o_field_group" style="display: none;">
+                    <label class="o_field_label" for="recChequeStatus">Cheque Status</label>
+                    <select id="recChequeStatus" class="o_field_widget">
+                        <option value="Cleared">Cleared</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Bounced">Bounced</option>
+                    </select>
+                </div>
+
+                {# Shown for every method, not only online. A photographed
+                   receipt is worth having against a cash payment too - it is
+                   only *required* for online, where there is no physical
+                   receipt in the file. #}
+                <div id="proofFieldGroup" class="o_field_group">
+                    <label class="o_field_label" for="recProofFile">
+                        Proof of Payment
+                        <span class="ar-required" id="recProofRequired">*</span>
+                        <span class="ar-optional" id="recProofOptional" hidden>(optional)</span>
+                    </label>
+
+                    <input type="file" id="recProofFile" class="ar-file-input"
+                        accept="image/jpeg,image/png,.jpg,.jpeg,.png" onchange="handleProofSelected(this)">
+
+                    <label class="ar-dropzone" for="recProofFile" id="recDropzone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <span class="ar-dropzone-title">Choose an image, or drop one here</span>
+                        <span class="ar-dropzone-hint">JPG or PNG &middot; up to 5&nbsp;MB</span>
+                    </label>
+
+                    <div class="ar-proof" id="recProofPreview" hidden>
+                        <img id="recProofThumb" alt="Selected proof of payment">
+                        <div class="ar-proof-meta">
+                            <strong id="recProofName"></strong>
+                            <span id="recProofSize"></span>
+                        </div>
+                        <button type="button" class="ar-proof-remove" onclick="clearProof()"
+                            title="Remove this image" aria-label="Remove this image">&times;</button>
+                    </div>
+
+                    <p class="ar-field-error" id="recProofError" hidden></p>
+                </div>
+
+                <div class="o_field_group">
+                    <label class="o_field_label" for="recNotes">Notes / Remarks</label>
+                    <textarea id="recNotes" class="o_field_widget" rows="2"
+                        placeholder="Anything worth recording about this payment"></textarea>
+                </div>
+
+                <label class="ar-checkbox-group" for="recForceFull">
+                    <input type="checkbox" id="recForceFull">
+                    <span>
+                        <strong>Mark as fully recovered</strong>
+                        <small>Writes off whatever is left outstanding on this vehicle.</small>
+                    </span>
+                </label>
+
+                {# The recovery is stamped server-side on save. Saying so, with
+                   the time it will carry, means nobody has to wonder whether
+                   the record will show when this actually happened. #}
+                <p class="ar-stamp"><i class="fas fa-clock"></i>
+                    Recorded as <strong id="recTimestamp">&mdash;</strong> (PKT) when you submit.</p>
+            </div>
+            <div class="ar-modal-footer">
+                <button type="button" class="o_button o_button_secondary" onclick="closeRecoveryModal()">Cancel</button>
+                <button type="submit" class="o_button o_button_success" id="recSubmitBtn">
+                    <i class="fas fa-check"></i> Submit Recovery
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ==================== FOLLOW-UP MODAL ==================== -->
+<div class="ar-modal-overlay" id="followupModal">
+    <div class="ar-modal">
+        <div class="ar-modal-header">
+            <h3><i class="fas fa-comments"></i> Add Follow-up Note</h3>
+            <button class="ar-modal-close" onclick="closeFollowupModal()">&times;</button>
+        </div>
+        <form id="followupForm" onsubmit="submitFollowup(event)">
+            <div class="ar-modal-body">
+                <input type="hidden" id="folVehicleId">
+                <div class="o_field_group">
+                    <label class="o_field_label" for="folRegNo">Vehicle Registration</label>
+                    <input type="text" id="folRegNo" class="o_field_widget" readonly>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="folNote">Follow-up Note</label>
+                    <textarea id="folNote" class="o_field_widget" rows="3" required placeholder="Enter follow-up details..."></textarea>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="folNextDate">Next Follow-up Date</label>
+                    <input type="date" id="folNextDate" class="o_field_widget">
+                </div>
+            </div>
+            <div class="ar-modal-footer">
+                <button type="button" class="o_button o_button_secondary" onclick="closeFollowupModal()">Cancel</button>
+                <button type="submit" class="o_icon_btn o_icon_btn_save" title="Add Follow-up Note" aria-label="Add Follow-up Note"><i class="fas fa-floppy-disk"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ==================== INVOICE MODAL ====================
+   Raising an invoice is a decision, not a download: the officer confirms who
+   is being billed and for how much before the document exists. The amount is
+   prefilled with the outstanding balance, so leaving it alone bills the full
+   balance and the override is a deliberate edit.
+
+   A real form POST rather than fetch(): the response is the PDF itself, and
+   the browser downloading it while the page stays put is exactly the wanted
+   behaviour. #}
+<div class="ar-modal-overlay" id="invoiceModal">
+    <div class="ar-modal">
+        <div class="ar-modal-header">
+            <h3><i class="fas fa-file-invoice"></i> Generate AMC Invoice</h3>
+            <button class="ar-modal-close" onclick="closeInvoiceModal()" aria-label="Close">&times;</button>
+        </div>
+        <form id="invoiceForm" method="POST" onsubmit="closeInvoiceModal()">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="ar-modal-body">
+                <div class="o_field_group">
+                    <label class="o_field_label" for="invTarget">Billing</label>
+                    <input type="text" id="invTarget" class="o_field_widget" readonly>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="invOutstanding">Outstanding Balance (PKR)</label>
+                    <input type="text" id="invOutstanding" class="o_field_widget" readonly>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="invAmount">Invoice Amount (PKR)</label>
+                    <input type="number" id="invAmount" name="override_amount" class="o_field_widget no-uppercase"
+                        step="0.01" min="0" required oninput="updateInvoiceDiscount()">
+                    <small class="ar-inv-hint">Bill less than the balance to allow a discount. It cannot exceed
+                        the outstanding.</small>
+                </div>
+                <div class="o_field_group" id="invDiscountRow" style="display: none;">
+                    <label class="o_field_label" for="invReason">
+                        Discount <span id="invDiscountAmount" class="ar-inv-discount">PKR 0</span> &mdash; Reason
+                    </label>
+                    {# no-uppercase: this is a sentence explaining a concession, not a
+                       data field. The app upper-cases text inputs for registrations and
+                       names, and that styling would make the stored reason and the box
+                       it was typed into disagree on the report. #}
+                    <input type="text" id="invReason" name="discount_reason"
+                        class="o_field_widget no-uppercase"
+                        placeholder="Why the customer is being billed below the balance"
+                        maxlength="300">
+                </div>
+            </div>
+            <div class="ar-modal-footer">
+                <button type="button" class="o_button o_button_secondary" onclick="closeInvoiceModal()">Cancel</button>
+                <button type="submit" class="o_button o_button_primary" id="invSubmitBtn">
+                    <i class="fas fa-file-invoice"></i> Generate Invoice
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ==================== DETAILS MODAL ==================== -->
+<div class="ar-modal-overlay" id="detailsModal">
+    <div class="ar-modal ar-modal-lg">
+        <div class="ar-modal-header">
+            <h3 id="detailsModalTitle">Vehicle History</h3>
+            <button class="ar-modal-close" onclick="closeDetailsModal()">&times;</button>
+        </div>
+        <div class="ar-modal-body" id="detailsModalContent"></div>
+    </div>
+</div>
+
+{# Supervisor-only modals - not rendered at all for a recovery officer. #}
+{% if can_manage_sheets %}
+<!-- ==================== ASSIGN SHEET MODAL ==================== -->
+<div class="ar-modal-overlay" id="assignSheetModal">
+    <div class="ar-modal">
+        <div class="ar-modal-header">
+            <h3><i class="fas fa-tasks"></i> Assign Sheet to User</h3>
+            <button class="ar-modal-close" onclick="closeAssignSheetModal()">&times;</button>
+        </div>
+        <form id="assignSheetForm" onsubmit="submitAssignSheet(event)">
+            <div class="ar-modal-body">
+                <div class="o_field_group">
+                    <label class="o_field_label" for="asSheetName">Select Sheet</label>
+                    <select id="asSheetName" class="o_field_widget" required>
+                        <option value="">-- Choose Sheet --</option>
+                    </select>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="asUserId">Assign to User</label>
+                    <select id="asUserId" class="o_field_widget">
+                        <option value="0">Unassign Sheet</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.name or user.username }} ({{ user.role }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="ar-modal-footer">
+                <button type="button" class="o_button o_button_secondary" onclick="closeAssignSheetModal()">Cancel</button>
+                <button type="submit" class="o_button o_button_primary"><i class="fas fa-save"></i> Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ==================== UPLOAD EXCEL MODAL ==================== -->
+<div class="ar-modal-overlay" id="uploadModal">
+    <div class="ar-modal">
+        <div class="ar-modal-header">
+            <h3><i class="fas fa-file-excel"></i> Upload Excel</h3>
+            <button class="ar-modal-close" onclick="closeUploadModal()">&times;</button>
+        </div>
+        <form id="uploadForm" onsubmit="submitExcelUpload(event)">
+            <div class="ar-modal-body">
+                <div class="o_field_group">
+                    <label class="o_field_label" for="excelFile">Select .xlsx or .xls File</label>
+                    <input type="file" id="excelFile" class="o_field_widget" accept=".xlsx,.xls" required>
+                </div>
+            </div>
+            <div class="ar-modal-footer">
+                <button type="button" class="o_button o_button_secondary" onclick="closeUploadModal()">Cancel</button>
+                <button type="submit" class="o_button o_button_success" id="uploadSubmitBtn"><i class="fas fa-upload"></i> Upload &amp; Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ==================== AUDIT LOGS MODAL ==================== -->
+<div class="ar-modal-overlay" id="auditLogsModal">
+    <div class="ar-modal ar-modal-lg">
+        <div class="ar-modal-header">
+            <h3><i class="fas fa-history"></i> Audit Logs</h3>
+            <button class="ar-modal-close" onclick="closeAuditLogsModal()">&times;</button>
+        </div>
+        <div class="ar-modal-body" id="auditLogsContent"></div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ==================== SCOPED STYLES ==================== -->
+<style>
+    /* ---------- Page Header ---------- */
+    .ar-page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .ar-page-header .o_page_title {
+        margin-bottom: 0;
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+    .ar-header-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    /* ---------- Stats Grid (6 cards, 3 per row) ---------- */
+    .ar-stats-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    /* ---------- Filter Bar ---------- */
+    .ar-filter-bar {
+        margin-bottom: 24px;
+    }
+    .ar-filter-bar .o_form_header {
+        padding: 12px 20px;
+    }
+    .ar-filter-bar .o_form_title {
+        font-size: 12px;
+        text-align: left;
+    }
+    .ar-filter-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr auto;
+        gap: 16px;
+        align-items: end;
+    }
+    .ar-filter-grid .o_field_label {
+        text-align: left;
+        margin-bottom: 4px;
+    }
+    .ar-search-wrap {
+        position: relative;
+    }
+    .ar-search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--odoo-text-light);
+        font-size: 12px;
+        pointer-events: none;
+    }
+    .ar-search-input {
+        padding-left: 34px !important;
+    }
+    .ar-reset-btn {
+        width: 100%;
+        min-width: 80px !important;
+    }
+    .ar-filter-btn-group {
+        min-width: 100px;
+    }
+
+    /* ---------- Loading State ---------- */
+    .ar-loading {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--odoo-text-light);
+    }
+    .ar-loading p {
+        margin-top: 12px;
+        font-size: 13px;
+    }
+    .ar-empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: var(--odoo-white);
+        border: 1px solid var(--odoo-border);
+        border-radius: 12px;
+        color: var(--odoo-text-light);
+    }
+    .ar-empty-state i {
+        font-size: 40px;
+        color: var(--odoo-border);
+        margin-bottom: 12px;
+        display: block;
+    }
+    .ar-empty-state p {
+        font-size: 14px;
+        margin: 0;
+    }
+
+    /* ---------- Client Card ---------- */
+    .ar-client-card {
+        background: var(--odoo-white);
+        border: 1px solid var(--odoo-border);
+        border-radius: 12px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        box-shadow: var(--card-shadow);
+        transition: var(--transition);
+    }
+    .ar-client-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+    .ar-client-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 16px 20px;
+        background: var(--odoo-secondary);
+        border-bottom: 1px solid var(--odoo-border);
+    }
+    .ar-client-name {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--odoo-text);
+        margin: 0;
+        text-align: left;
+        text-transform: uppercase;
+    }
+    .ar-client-name i {
+        color: var(--odoo-primary);
+        margin-right: 6px;
+    }
+    .ar-client-meta {
+        font-size: 11px;
+        color: var(--odoo-text-light);
+        margin-top: 4px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .ar-client-meta span i {
+        margin-right: 4px;
+    }
+    .ar-client-summary {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .ar-summary-item {
+        text-align: right;
+    }
+    .ar-summary-label {
+        font-size: 10px;
+        color: var(--odoo-text-light);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        display: block;
+        margin-bottom: 2px;
+    }
+    .ar-summary-value {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--odoo-text);
+    }
+    .ar-summary-value.ar-green { color: #2E7D32; }
+    .ar-summary-value.ar-red   { color: #C62828; }
+
+    /* ---------- Vehicle Table inside cards ---------- */
+    .ar-client-card .o_list_view {
+        border: none;
+        border-radius: 0;
+    }
+    .ar-client-card .o_list_table {
+        font-size: 12px;
+    }
+    .ar-client-card .o_list_header th {
+        padding: 10px 12px;
+        font-size: 10px;
+        white-space: nowrap;
+    }
+    .ar-client-card .o_list_record td {
+        padding: 10px 12px;
+        font-size: 12px;
+        vertical-align: middle;
+    }
+    .ar-cell-reg { font-weight: 700; color: var(--odoo-text); white-space: nowrap; }
+    .ar-cell-amount { white-space: nowrap; }
+    .ar-cell-amount.ar-green { color: #2E7D32; font-weight: 600; }
+    .ar-cell-amount.ar-red   { color: #C62828; font-weight: 600; }
+    .ar-cell-sheet {
+        font-size: 10px;
+        background: var(--odoo-secondary);
+        padding: 2px 8px;
+        border-radius: 4px;
+        color: var(--odoo-text-light);
+        display: inline-block;
+        white-space: nowrap;
+    }
+    .ar-cell-remarks {
+        max-width: 140px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .ar-cell-actions {
+        text-align: center !important;
+        white-space: nowrap;
+    }
+    .ar-cell-actions .o_button_sm {
+        min-width: auto !important;
+        padding: 4px 10px !important;
+        font-size: 10px !important;
+    }
+
+    /* ---------- Modal System ---------- */
+    .ar-modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+    }
+    .ar-modal {
+        background: var(--odoo-white);
+        width: 100%;
+        max-width: 560px;
+        border-radius: 14px;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.22);
+        display: flex;
+        flex-direction: column;
+        max-height: 90vh;
+        overflow: hidden;
+    }
+
+    /* The form sits between the modal and its body/footer, so it - not the
+       body - is what the flex column actually contains. Without these the
+       modal box capped at 90vh correctly while the form inside it kept its
+       full height and rendered the footer past the bottom of the screen:
+       on an 800px-tall window the Submit button was simply unreachable.
+       The body scrolls; the header and footer stay put. */
+    .ar-modal > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+    .ar-modal-lg {
+        max-width: 780px;
+    }
+    .ar-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 22px;
+        /* The same pastel gradient the section headers across the CRM use,
+           so a dialog reads as part of the app rather than a bolted-on box. */
+        background: linear-gradient(135deg, var(--odoo-primary-soft) 0%, #FFFFFF 100%);
+        border-bottom: 2px solid var(--odoo-primary-light);
+        flex: none;
+    }
+    .ar-modal-header h3 {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        color: var(--odoo-primary-dark);
+        text-align: left;
+        text-transform: uppercase;
+    }
+    .ar-modal-header h3 i {
+        margin-right: 8px;
+        color: var(--odoo-primary);
+    }
+    .ar-modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: var(--odoo-text-light);
+        cursor: pointer;
+        line-height: 1;
+        padding: 0 4px;
+        transition: var(--transition);
+    }
+    .ar-modal-close:hover {
+        color: var(--odoo-danger-dark);
+    }
+    .ar-modal-body {
+        padding: 22px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        flex: 1;
+        min-height: 0;
+    }
+    .ar-modal-body .o_field_group {
+        margin-bottom: 16px;
+    }
+    .ar-modal-body .o_field_label {
+        text-align: left;
+        margin-bottom: 6px;
+    }
+    .ar-modal-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    /* ---------- Read-only context summary ---------- */
+    .ar-rec-summary {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 10px 18px;
+        align-items: center;
+        padding: 12px 14px;
+        margin-bottom: 20px;
+        background: var(--odoo-secondary);
+        border: 1px solid var(--odoo-border);
+        border-radius: 10px;
+    }
+    .ar-rec-summary-label {
+        display: block;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: var(--odoo-text-muted);
+        margin-bottom: 2px;
+    }
+    .ar-rec-summary-value {
+        display: block;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--odoo-text);
+        font-variant-numeric: tabular-nums;
+    }
+    .ar-rec-summary-item:not(:first-child) {
+        text-align: right;
+    }
+    /* The one figure the officer is acting on. */
+    .ar-rec-summary-due .ar-rec-summary-value {
+        color: #C2410C;
+    }
+
+    /* ---------- Amount ---------- */
+    .ar-amount-wrap {
+        display: flex;
+        align-items: stretch;
+    }
+    .ar-amount-prefix {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 12px;
+        background: var(--odoo-secondary);
+        border: 1px solid var(--odoo-border);
+        border-right: none;
+        border-radius: 8px 0 0 8px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--odoo-text-muted);
+    }
+    .ar-amount-field {
+        border-radius: 0 8px 8px 0 !important;
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------- Proof of payment ---------- */
+    .ar-required {
+        color: #DC2626;
+        font-weight: 700;
+    }
+    .ar-optional {
+        font-weight: 500;
+        color: var(--odoo-text-muted);
+        text-transform: none;
+        letter-spacing: 0;
+    }
+    /* The native control is kept in the DOM for the form and for keyboard
+       users, but visually replaced by the dropzone label below - `display:
+       none` would take it out of the tab order along with its styling. */
+    .ar-file-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        overflow: hidden;
+    }
+    .ar-dropzone {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 18px 16px;
+        border: 1.5px dashed var(--odoo-border);
+        border-radius: 10px;
+        background: var(--odoo-secondary);
+        cursor: pointer;
+        text-align: center;
+        transition: var(--transition);
+    }
+    .ar-dropzone:hover,
+    .ar-dropzone.is_dragover,
+    .ar-file-input:focus-visible + .ar-dropzone {
+        border-color: var(--odoo-primary);
+        background: var(--odoo-primary-soft);
+    }
+    .ar-dropzone i {
+        font-size: 18px;
+        color: var(--odoo-primary);
+        margin-bottom: 2px;
+    }
+    .ar-dropzone-title {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--odoo-text);
+    }
+    .ar-dropzone-hint {
+        font-size: 11px;
+        color: var(--odoo-text-muted);
+    }
+    /* Once something is chosen, show it. An upload you cannot see is an
+       upload you cannot check before committing the payment. */
+    .ar-proof {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        border: 1px solid var(--odoo-border);
+        border-radius: 10px;
+        background: var(--odoo-white);
+    }
+    .ar-proof img {
+        width: 54px;
+        height: 54px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--odoo-border);
+        flex: none;
+    }
+    .ar-proof-meta {
+        min-width: 0;
+        flex: 1;
+    }
+    .ar-proof-meta strong {
+        display: block;
+        font-size: 12.5px;
+        color: var(--odoo-text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .ar-proof-meta span {
+        font-size: 11px;
+        color: var(--odoo-text-muted);
+    }
+    .ar-proof-remove {
+        flex: none;
+        background: none;
+        border: none;
+        font-size: 20px;
+        line-height: 1;
+        color: var(--odoo-text-light);
+        cursor: pointer;
+        padding: 0 4px;
+        transition: var(--transition);
+    }
+    .ar-proof-remove:hover {
+        color: var(--odoo-danger-dark);
+    }
+    .ar-field-error {
+        margin: 8px 0 0;
+        font-size: 11.5px;
+        color: #BE185D;
+    }
+
+    /* `hidden` is a UA rule (`[hidden] { display: none }`) and loses to any
+       author `display` declaration - so the `display: flex` above kept the
+       dropzone AND the preview on screen at once, whatever the attribute
+       said. These three carry the toggling, so they have to win it back. */
+    .ar-dropzone[hidden],
+    .ar-proof[hidden],
+    .ar-field-error[hidden] {
+        display: none;
+    }
+
+    /* ---------- Confirmation controls ---------- */
+    .ar-checkbox-group {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-top: 4px;
+        padding: 12px 14px;
+        background: var(--odoo-secondary);
+        border: 1px solid var(--odoo-border);
+        border-radius: 10px;
+        cursor: pointer;
+    }
+    .ar-checkbox-group input {
+        margin-top: 2px;
+        flex: none;
+    }
+    .ar-checkbox-group strong {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--odoo-text);
+    }
+    .ar-checkbox-group small {
+        font-size: 11px;
+        color: var(--odoo-text-muted);
+    }
+    .ar-stamp {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin: 14px 0 0;
+        font-size: 11.5px;
+        color: var(--odoo-text-muted);
+    }
+    .ar-stamp i {
+        color: var(--odoo-primary);
+    }
+    .ar-stamp strong {
+        color: var(--odoo-text-light);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .ar-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 14px 22px;
+        border-top: 1px solid var(--odoo-border);
+        background: var(--odoo-secondary);
+        flex: none;
+    }
+
+    /* A phone has no room for two columns, and the summary reads better as
+       stacked rows than as three cramped ones. */
+    @media (max-width: 560px) {
+        .ar-modal-overlay {
+            padding: 10px;
+        }
+        .ar-modal {
+            max-height: 94vh;
+        }
+        .ar-modal-body {
+            padding: 16px;
+        }
+        .ar-modal-row,
+        .ar-rec-summary {
+            grid-template-columns: 1fr;
+        }
+        .ar-rec-summary-item:not(:first-child) {
+            text-align: left;
+        }
+        .ar-modal-footer {
+            padding: 12px 16px;
+        }
+        .ar-modal-footer .o_button {
+            flex: 1;
+            justify-content: center;
+        }
+    }
+
+    /* ---------- Detail modal tables ---------- */
+    .ar-detail-section {
+        margin-bottom: 20px;
+    }
+    .ar-detail-section h4 {
+        font-size: 14px;
+        color: var(--odoo-primary-dark);
+        margin-bottom: 10px;
+        text-align: left;
+        border-bottom: 2px solid var(--odoo-border);
+        padding-bottom: 6px;
+    }
+    .ar-detail-section h4 i {
+        margin-right: 8px;
+        color: var(--odoo-primary);
+    }
+    .ar-detail-empty {
+        font-size: 12px;
+        color: var(--odoo-text-light);
+        padding: 12px 0;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 1024px) {
+        .ar-stats-grid { grid-template-columns: repeat(3, 1fr) !important; }
+        .ar-filter-grid { grid-template-columns: 1fr 1fr; }
+        .ar-client-summary { gap: 12px; }
+    }
+    @media (max-width: 768px) {
+        .ar-page-header { flex-direction: column; align-items: flex-start; }
+        .ar-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        .ar-filter-grid { grid-template-columns: 1fr; }
+        .ar-client-header { flex-direction: column; align-items: flex-start; }
+        .ar-client-summary { width: 100%; justify-content: space-between; }
+        .ar-modal { max-width: 95%; }
+        .ar-modal-row { grid-template-columns: 1fr; }
+    }
+
+    .ar-inv-hint {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--odoo-text-light);
+    }
+
+    .ar-inv-discount {
+        color: #9C4221;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ==================== STATE ==================== */
+const CSRF_TOKEN = "{{ csrf_token() }}";
+// Supervisors (admin/manager) see every sheet; a recovery officer sees only the
+// sheets assigned to them. Used for wording, not for access - the API enforces it.
+const CAN_MANAGE_SHEETS = "{{ can_manage_sheets|lower }}" === "true";
+
+// Invoice routes, built once by url_for with a placeholder id, so the rows
+// rendered client-side can link to them without hardcoding the URL shape.
+const VEHICLE_INVOICE_URL = "{{ url_for('annual_recovery.amc_invoice_pdf', vehicle_id=987654321)|replace('987654321', '__ID__') }}";
+const CLIENT_INVOICE_URL = "{{ url_for('annual_recovery.amc_client_invoice_pdf', client_id=987654321)|replace('987654321', '__ID__') }}";
+
+let filterTimer = null;
+
+/* ==================== INIT ==================== */
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadClients();
+});
+
+/* ==================== STATS ==================== */
+function loadStats() {
+    // Scope the stat cards to the selected sheet, so they always describe the
+    // same records the list below is showing.
+    const sheetEl = document.getElementById('sheetFilter');
+    const sheetVal = sheetEl ? sheetEl.value : '';
+    const statsUrl = '{{ url_for("annual_recovery.get_stats") }}'
+        + (sheetVal ? '?sheet=' + encodeURIComponent(sheetVal) : '');
+
+    fetch(statsUrl)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('statTotalClients').innerText = data.totalClients.toLocaleString();
+            document.getElementById('statTotalVehicles').innerText = data.totalVehicles.toLocaleString();
+            document.getElementById('statTotalAmc').innerText = 'PKR ' + Math.round(data.totalAmcCharges).toLocaleString();
+            document.getElementById('statTotalRecovered').innerText = 'PKR ' + Math.round(data.totalRecovered).toLocaleString();
+            document.getElementById('statTotalOutstanding').innerText = 'PKR ' + Math.round(data.totalOutstanding).toLocaleString();
+            document.getElementById('statTotalLost').innerText = 'PKR ' + Math.round(data.totalLost).toLocaleString();
+
+            // Populate sheet dropdowns
+            const sheetSel = document.getElementById('sheetFilter');
+            // Only rendered for supervisors - an officer has no assign modal.
+            const assignSel = document.getElementById('asSheetName');
+            const curr = sheetSel.value;
+            sheetSel.innerHTML = '<option value="">All Sheets</option>';
+            if (assignSel) assignSel.innerHTML = '<option value="">-- Choose Sheet --</option>';
+            data.sheets.forEach(s => {
+                sheetSel.innerHTML += `<option value="${esc(s)}" ${s===curr?'selected':''}>${esc(s)}</option>`;
+                if (assignSel) assignSel.innerHTML += `<option value="${esc(s)}">${esc(s)}</option>`;
+            });
+        })
+        .catch(e => console.error('Stats error:', e));
+}
+
+/* ==================== FILTER / SEARCH ==================== */
+function debounceFilter() {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(loadClients, 300);
+}
+
+function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('sheetFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    const assignedEl = document.getElementById('assignedFilter');
+    if (assignedEl) assignedEl.value = '';
+    loadStats();
+    loadClients();
+}
+
+/* ==================== CLIENTS ==================== */
+function loadClients() {
+    // The Assigned User filter is supervisor-only; an officer's results are
+    // already scoped to their own sheets server-side.
+    const assignedEl = document.getElementById('assignedFilter');
+    const params = new URLSearchParams({
+        search: document.getElementById('searchInput').value,
+        sheet:  document.getElementById('sheetFilter').value,
+        status: document.getElementById('statusFilter').value,
+        assigned: assignedEl ? assignedEl.value : ''
+    });
+    const container = document.getElementById('clientsContainer');
+    container.innerHTML = '<div class="ar-loading"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Searching recovery records...</p></div>';
+
+    fetch(`{{ url_for("annual_recovery.get_clients") }}?${params}`)
+        .then(r => r.json())
+        .then(clients => {
+            if (!clients || !clients.length) {
+                // An officer sees only their assigned sheets, so "nothing here"
+                // usually means nothing is assigned yet - say that rather than
+                // implying their search came up empty.
+                const anyFilter = document.getElementById('searchInput').value
+                    || document.getElementById('sheetFilter').value
+                    || document.getElementById('statusFilter').value;
+                const msg = (!CAN_MANAGE_SHEETS && !anyFilter)
+                    ? 'No sheets are assigned to you yet. Your supervisor assigns sheets from the Annual Recovery dashboard.'
+                    : 'No matching client or vehicle records found.';
+                container.innerHTML = `<div class="ar-empty-state"><i class="fas fa-folder-open"></i><p>${msg}</p></div>`;
+                return;
+            }
+            container.innerHTML = clients.map(renderClient).join('');
+        })
+        .catch(e => { container.innerHTML = `<div class="o_alert o_alert_danger"><i class="fas fa-exclamation-circle"></i> Failed to load: ${e}</div>`; });
+}
+
+function renderClient(c) {
+    const out = c.outstanding || 0;
+    const outClass = out <= 0 ? 'ar-green' : 'ar-red';
+    const vehicles = (c.vehicles || []).map(renderVehicleRow).join('');
+
+    return `
+    <div class="ar-client-card">
+        <div class="ar-client-header">
+            <div>
+                <div class="ar-client-name"><i class="fas fa-user-circle"></i>${esc(c.name)}</div>
+                <div class="ar-client-meta">
+                    <span><i class="fas fa-phone-alt"></i>${esc(c.cell1||'N/A')}</span>
+                    <span><i class="fas fa-user-tie"></i>${esc(c.employeeName||'N/A')}</span>
+                </div>
+            </div>
+            <div class="ar-client-summary">
+                <div class="ar-summary-item">
+                    <span class="ar-summary-label">AMC / Recovered</span>
+                    <span class="ar-summary-value">PKR ${fmt(c.totalAmcCharges)} / <span class="ar-green">${fmt(c.totalRecovered)}</span></span>
+                </div>
+                <div class="ar-summary-item">
+                    <span class="ar-summary-label">Outstanding</span>
+                    <span class="o_badge ${out<=0?'o_badge_success':'o_badge_warning'}">PKR ${fmt(out)}</span>
+                </div>
+                <div class="ar-summary-item">
+                    <span class="ar-summary-label">Invoice</span>
+                    <button type="button" class="o_button o_button_primary o_button_sm"
+                       title="Customer-wise AMC invoice for every vehicle listed below"
+                       onclick="openInvoiceModal('client', ${c.id}, '${esc(c.name)}', ${out})">
+                        <i class="fas fa-file-invoice"></i> Invoice All
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="o_list_view">
+            <table class="o_list_table">
+                <thead class="o_list_header">
+                    <tr>
+                        <th>Reg No</th><th>Install Date</th><th>AMC</th><th>Recovered</th>
+                        <th>Outstanding</th><th>Status</th><th>Sheet</th><th>Remarks</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>${vehicles}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+
+function renderVehicleRow(v) {
+    const vOut = v.outstanding || 0;
+    const statusBadge = badgeFor(v.status);
+    // A part-recovered vehicle is marked RECOVERED - the imported sheets record
+    // it that way even when a balance remains - so status alone must not decide
+    // this, or the outstanding amount would become uncollectable. Only a fully
+    // settled recovery, or a write-off, closes the row to further work.
+    const settled = (v.status === 'RECOVERED' && vOut <= 0);
+    const actions = (!settled && v.status !== 'LOST')
+        ? `<button class="o_button o_button_success o_button_sm" onclick="openRecoveryModal(${v.id},'${esc(v.regNo)}',${v.amcCharges},${vOut})" title="Pay"><i class="fas fa-dollar-sign"></i></button>
+           <button class="o_button o_button_primary o_button_sm" onclick="openFollowupModal(${v.id},'${esc(v.regNo)}')" title="Follow-up"><i class="fas fa-comment-alt"></i></button>
+           <button class="o_button o_button_danger o_button_sm" onclick="markVehicleLost(${v.id},'${esc(v.regNo)}')" title="Lost"><i class="fas fa-times"></i></button>`
+        : '';
+    return `
+    <tr class="o_list_record">
+        <td class="ar-cell-reg">${esc(v.regNo)}</td>
+        <td>${esc(v.installationDate||'-')}</td>
+        <td class="ar-cell-amount">PKR ${fmt(v.amcCharges)}</td>
+        <td class="ar-cell-amount ar-green">PKR ${fmt(v.recoveredAmount)}</td>
+        <td class="ar-cell-amount ${vOut>0?'ar-red':'ar-green'}">PKR ${fmt(vOut)}</td>
+        <td>${statusBadge}</td>
+        <td><span class="ar-cell-sheet">${esc(v.sheetName||'Default')}</span></td>
+        <td class="ar-cell-remarks" title="${esc(v.remarks||'')}">${esc(v.remarks||'-')}</td>
+        <td class="ar-cell-actions">
+            ${actions}
+            <button class="o_icon_btn o_icon_btn_view" onclick="openDetailsModal(${v.id},'${esc(v.regNo)}')" title="Details" aria-label="Details"><i class="fas fa-eye"></i></button>
+            <button type="button" class="o_icon_btn o_icon_btn_edit"
+               title="Vehicle-wise AMC invoice for ${esc(v.regNo)}" aria-label="AMC invoice for ${esc(v.regNo)}"
+               onclick="openInvoiceModal('vehicle', ${v.id}, '${esc(v.regNo)}', ${vOut})"><i class="fas fa-file-invoice"></i></button>
+        </td>
+    </tr>`;
+}
+
+/* ==================== HELPERS ==================== */
+function badgeFor(s) {
+    switch(s) {
+        case 'RECOVERED': return '<span class="o_badge o_badge_success"><i class="fas fa-check"></i> RECOVERED</span>';
+        case 'FOLLOWUP':  return '<span class="o_badge o_badge_info"><i class="fas fa-clock"></i> FOLLOWUP</span>';
+        case 'LOST':      return '<span class="o_badge o_badge_danger"><i class="fas fa-ban"></i> LOST</span>';
+        default:          return '<span class="o_badge o_badge_warning"><i class="fas fa-exclamation-circle"></i> PENDING</span>';
+    }
+}
+function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;') : ''; }
+function fmt(n) { return Math.round(n||0).toLocaleString(); }
+function showModal(id) { document.getElementById(id).style.display = 'flex'; }
+function hideModal(id) { document.getElementById(id).style.display = 'none'; }
+
+/* ==================== RECOVERY MODAL ==================== */
+/* Kept in step with payment_proof_service.py, which enforces the same two
+   limits server-side. Checking here as well means a 9 MB photo is refused
+   before it is uploaded, not after. */
+const PROOF_TYPES = ['image/jpeg', 'image/png'];
+const PROOF_MAX_BYTES = 5 * 1024 * 1024;
+let proofObjectUrl = null;
+
+function openRecoveryModal(vId, regNo, amc, out) {
+    document.getElementById('recVehicleId').value = vId;
+    document.getElementById('recRegNo').textContent = regNo;
+    document.getElementById('recAmc').textContent = 'PKR ' + fmt(amc);
+    document.getElementById('recOutstanding').textContent = 'PKR ' + fmt(out);
+    document.getElementById('recAmount').value = Math.round(out);
+    document.getElementById('recMethod').value = 'Cash Payment';
+    document.getElementById('recReference').value = '';
+    document.getElementById('recNotes').value = '';
+    document.getElementById('recForceFull').checked = false;
+    clearProof();
+    togglePaymentFields();
+    stampRecoveryTime();
+    showModal('recoveryModal');
+}
+function closeRecoveryModal() { hideModal('recoveryModal'); }
+
+/* The server stamps the record in Pakistan time; this shows the same clock
+   rather than the viewer's, so a laptop left on another timezone doesn't
+   promise a time the record will not carry. */
+function stampRecoveryTime() {
+    const el = document.getElementById('recTimestamp');
+    if (!el) return;
+    el.textContent = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Karachi', day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
+    }).format(new Date());
+}
+
+function togglePaymentFields() {
+    const method = document.getElementById('recMethod').value;
+    const online = method === 'Online Payment';
+    document.getElementById('chequeFieldGroup').style.display = method === 'Cheque' ? 'block' : 'none';
+    // Proof is offered for every method and demanded only for online, where
+    // there is no physical receipt to file.
+    document.getElementById('recProofFile').required = online;
+    document.getElementById('recProofRequired').hidden = !online;
+    document.getElementById('recProofOptional').hidden = online;
+    document.getElementById('recReferenceLabel').textContent = method === 'Cheque' ? 'Cheque No.' : (online ? 'Transaction ID' : 'Reference No.');
+}
+
+function showProofError(message) {
+    const el = document.getElementById('recProofError');
+    el.textContent = message || '';
+    el.hidden = !message;
+}
+
+function handleProofSelected(input) {
+    const file = input.files && input.files[0];
+    if (!file) { clearProof(); return; }
+
+    if (PROOF_TYPES.indexOf(file.type) === -1) {
+        clearProof();
+        showProofError('That file is not a JPG or PNG image.');
+        return;
+    }
+    if (file.size > PROOF_MAX_BYTES) {
+        clearProof();
+        showProofError('That image is ' + formatBytes(file.size) + '. The limit is 5 MB.');
+        return;
+    }
+
+    showProofError('');
+    if (proofObjectUrl) URL.revokeObjectURL(proofObjectUrl);
+    proofObjectUrl = URL.createObjectURL(file);
+    document.getElementById('recProofThumb').src = proofObjectUrl;
+    document.getElementById('recProofName').textContent = file.name;
+    document.getElementById('recProofSize').textContent = formatBytes(file.size);
+    document.getElementById('recProofPreview').hidden = false;
+    document.getElementById('recDropzone').hidden = true;
+}
+
+function clearProof() {
+    const input = document.getElementById('recProofFile');
+    if (input) input.value = '';
+    if (proofObjectUrl) { URL.revokeObjectURL(proofObjectUrl); proofObjectUrl = null; }
+    const preview = document.getElementById('recProofPreview');
+    if (preview) preview.hidden = true;
+    const dropzone = document.getElementById('recDropzone');
+    if (dropzone) { dropzone.hidden = false; dropzone.classList.remove('is_dragover'); }
+    showProofError('');
+}
+
+function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/* Drag and drop onto the zone, which is what people try first with a
+   screenshot of a bank transfer. */
+(function () {
+    const zone = document.getElementById('recDropzone');
+    if (!zone) return;
+    ['dragenter', 'dragover'].forEach(function (evt) {
+        zone.addEventListener(evt, function (e) {
+            e.preventDefault(); zone.classList.add('is_dragover');
+        });
+    });
+    ['dragleave', 'drop'].forEach(function (evt) {
+        zone.addEventListener(evt, function (e) {
+            e.preventDefault(); zone.classList.remove('is_dragover');
+        });
+    });
+    zone.addEventListener('drop', function (e) {
+        const files = e.dataTransfer && e.dataTransfer.files;
+        if (!files || !files.length) return;
+        const input = document.getElementById('recProofFile');
+        input.files = files;
+        handleProofSelected(input);
+    });
+})();
+
+function submitRecovery(e) {
+    e.preventDefault();
+    const method = document.getElementById('recMethod').value;
+    const proofInput = document.getElementById('recProofFile');
+    if (method === 'Online Payment' && !proofInput.files.length) {
+        showProofError('Proof of payment is required for an online payment.');
+        document.getElementById('proofFieldGroup').scrollIntoView({block: 'nearest'});
+        return;
+    }
+
+    // Locked while the request is in flight: a second click on a slow
+    // connection would post the same payment twice, and the history record
+    // it writes cannot be edited or removed afterwards.
+    const submitBtn = document.getElementById('recSubmitBtn');
+    submitBtn.disabled = true;
+    const originalLabel = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Recording...';
+
+    const formData = new FormData();
+    formData.append('vehicleId', document.getElementById('recVehicleId').value);
+    formData.append('amount', document.getElementById('recAmount').value);
+    formData.append('paymentMethod', method);
+    formData.append('chequeStatus', document.getElementById('recChequeStatus').value);
+    formData.append('referenceNo', document.getElementById('recReference').value);
+    formData.append('notes', document.getElementById('recNotes').value);
+    formData.append('forceFullyRecovered', document.getElementById('recForceFull').checked);
+    if (proofInput.files.length) formData.append('proofFile', proofInput.files[0]);
+
+    fetch('{{ url_for("annual_recovery.recover_amount") }}', {method:'POST', headers:{'X-CSRFToken': CSRF_TOKEN}, body:formData})
+        .then(r=>r.json()).then(r=>{
+            if(r.success){closeRecoveryModal();loadStats();loadClients();}
+            else showProofError(r.message||'The payment could not be recorded.');
+        })
+        .catch(()=>showProofError('The payment could not be recorded - check your connection and try again.'))
+        .finally(()=>{ submitBtn.disabled = false; submitBtn.innerHTML = originalLabel; });
+}
+
+/* ==================== FOLLOWUP MODAL ==================== */
+function openFollowupModal(vId, regNo) {
+    document.getElementById('folVehicleId').value = vId;
+    document.getElementById('folRegNo').value = regNo;
+    document.getElementById('folNote').value = '';
+    document.getElementById('folNextDate').value = '';
+    showModal('followupModal');
+}
+function closeFollowupModal() { hideModal('followupModal'); }
+function submitFollowup(e) {
+    e.preventDefault();
+    const payload = {
+        vehicleId: +document.getElementById('folVehicleId').value,
+        note: document.getElementById('folNote').value,
+        nextDate: document.getElementById('folNextDate').value
+    };
+    fetch('{{ url_for("annual_recovery.add_followup") }}', {method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': CSRF_TOKEN}, body:JSON.stringify(payload)})
+        .then(r=>r.json()).then(r=>{
+            if(r.success){closeFollowupModal();loadStats();loadClients();}
+            else alert(r.message||'Error');
+        });
+}
+
+/* ==================== MARK LOST ==================== */
+function markVehicleLost(vId, regNo) {
+    if(!confirm('Mark vehicle ' + regNo + ' as LOST?')) return;
+    fetch('{{ url_for("annual_recovery.mark_lost") }}', {method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': CSRF_TOKEN}, body:JSON.stringify({vehicleId:vId})})
+        .then(r=>r.json()).then(r=>{ if(r.success){loadStats();loadClients();} else alert(r.message||'Error'); });
+}
+
+/* ==================== DETAILS MODAL ==================== */
+function openDetailsModal(vId, regNo) {
+    document.getElementById('detailsModalTitle').innerText = 'History & Follow-ups - ' + regNo;
+    const cont = document.getElementById('detailsModalContent');
+    cont.innerHTML = '<div class="ar-loading"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
+    showModal('detailsModal');
+
+    Promise.all([
+        fetch(`{{ url_for("annual_recovery.dashboard") }}api/history/${vId}`).then(r=>r.json()),
+        fetch(`{{ url_for("annual_recovery.dashboard") }}api/followups/${vId}`).then(r=>r.json())
+    ]).then(([hist, fups]) => {
+        let html = '<div class="ar-detail-section"><h4><i class="fas fa-file-invoice-dollar"></i> Recovery Payments</h4>';
+        if(!hist||!hist.length) html += '<p class="ar-detail-empty">No payments recorded yet.</p>';
+        else {
+            html += '<div class="o_list_view"><table class="o_list_table"><thead class="o_list_header"><tr><th>Date</th><th>Amount</th><th>Method</th><th>Ref</th><th>Notes</th></tr></thead><tbody>';
+            hist.forEach(h => { html += `<tr class="o_list_record"><td>${h.date}</td><td class="ar-cell-amount ar-green">PKR ${h.amount.toLocaleString()}</td><td>${h.paymentMethod}</td><td>${h.referenceNo||'-'}</td><td>${h.notes||'-'}</td></tr>`; });
+            html += '</tbody></table></div>';
+        }
+        html += '</div><div class="ar-detail-section"><h4><i class="fas fa-comments"></i> Follow-up Log</h4>';
+        if(!fups||!fups.length) html += '<p class="ar-detail-empty">No follow-up notes logged.</p>';
+        else {
+            html += '<div class="o_list_view"><table class="o_list_table"><thead class="o_list_header"><tr><th>Date</th><th>By</th><th>Note</th><th>Next Call</th></tr></thead><tbody>';
+            fups.forEach(f => { html += `<tr class="o_list_record"><td>${f.date}</td><td>${f.createdBy}</td><td>${f.note}</td><td>${f.nextDate||'-'}</td></tr>`; });
+            html += '</tbody></table></div>';
+        }
+        html += '</div>';
+        cont.innerHTML = html;
+    });
+}
+function closeDetailsModal() { hideModal('detailsModal'); }
+
+/* ==================== INVOICE ==================== */
+let invoiceOutstanding = 0;
+
+function openInvoiceModal(kind, id, label, outstanding) {
+    invoiceOutstanding = Math.max(0, outstanding || 0);
+
+    const url = (kind === 'client' ? CLIENT_INVOICE_URL : VEHICLE_INVOICE_URL)
+        .replace('__ID__', id);
+    document.getElementById('invoiceForm').action = url;
+    document.getElementById('invTarget').value =
+        (kind === 'client' ? 'Customer: ' : 'Vehicle: ') + label;
+    document.getElementById('invOutstanding').value = fmt(invoiceOutstanding);
+
+    const amount = document.getElementById('invAmount');
+    // Prefilled with the balance, and capped at it - the server refuses a
+    // larger figure, so the field must not invite one.
+    amount.max = invoiceOutstanding.toFixed(2);
+    amount.value = invoiceOutstanding.toFixed(2);
+
+    document.getElementById('invReason').value = '';
+    updateInvoiceDiscount();
+    showModal('invoiceModal');
+    amount.focus();
+    amount.select();
+}
+
+function closeInvoiceModal() { hideModal('invoiceModal'); }
+
+/* The discount is shown as the officer types, and its reason is only asked
+   for once there is one to explain. */
+function updateInvoiceDiscount() {
+    const entered = parseFloat(document.getElementById('invAmount').value);
+    const billed = isFinite(entered) ? entered : 0;
+    const discount = Math.max(0, invoiceOutstanding - billed);
+    const row = document.getElementById('invDiscountRow');
+    const reason = document.getElementById('invReason');
+
+    if (discount > 0.005) {
+        document.getElementById('invDiscountAmount').textContent = 'PKR ' + fmt(discount);
+        row.style.display = '';
+        reason.required = true;
+    } else {
+        row.style.display = 'none';
+        reason.required = false;
+    }
+}
+
+/* ==================== ASSIGN SHEET ====================
+   Supervisor-only. The buttons and modals below these handlers are not
+   rendered for a recovery officer, and the routes reject them regardless. */
+function openAssignSheetModal() { showModal('assignSheetModal'); }
+function closeAssignSheetModal() { hideModal('assignSheetModal'); }
+function submitAssignSheet(e) {
+    e.preventDefault();
+    const payload = { sheet_name: document.getElementById('asSheetName').value, user_id: +document.getElementById('asUserId').value };
+    fetch('{{ url_for("annual_recovery.assign_sheet") }}', {method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': CSRF_TOKEN}, body:JSON.stringify(payload)})
+        .then(r=>r.json()).then(r=>{
+            if(r.success){closeAssignSheetModal();alert(r.message);loadClients();}
+            else alert(r.message||'Error');
+        });
+}
+
+/* ==================== UPLOAD EXCEL ==================== */
+function openUploadModal() { showModal('uploadModal'); }
+function closeUploadModal() { hideModal('uploadModal'); }
+function submitExcelUpload(e) {
+    e.preventDefault();
+    const file = document.getElementById('excelFile').files[0];
+    if(!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    const btn = document.getElementById('uploadSubmitBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+    fetch('{{ url_for("annual_recovery.upload_excel") }}', {method:'POST', headers:{'X-CSRFToken': CSRF_TOKEN}, body:fd})
+        .then(r=>r.json()).then(r=>{
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-upload"></i> Upload &amp; Import';
+            if(r.success){closeUploadModal();alert(r.message);loadStats();loadClients();}
+            else alert(r.message||'Error');
+        }).catch(err=>{
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-upload"></i> Upload &amp; Import';
+            alert('Upload failed: '+err);
+        });
+}
+
+/* ==================== AUDIT LOGS ==================== */
+function openAuditLogsModal() {
+    const cont = document.getElementById('auditLogsContent');
+    cont.innerHTML = '<div class="ar-loading"><i class="fas fa-spinner fa-spin"></i><p>Loading audit logs...</p></div>';
+    showModal('auditLogsModal');
+    fetch('{{ url_for("annual_recovery.get_audit_logs") }}')
+        .then(r=>r.json()).then(logs=>{
+            if(!logs||!logs.length){ cont.innerHTML = '<p class="ar-detail-empty">No audit logs available.</p>'; return; }
+            let html = '<div class="o_list_view"><table class="o_list_table"><thead class="o_list_header"><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody>';
+            logs.forEach(l => { html += `<tr class="o_list_record"><td>${l.date}</td><td>${l.user}</td><td><span class="o_badge o_badge_info">${l.action}</span></td><td>${l.details}</td></tr>`; });
+            html += '</tbody></table></div>';
+            cont.innerHTML = html;
+        });
+}
+function closeAuditLogsModal() { hideModal('auditLogsModal'); }
+</script>
+{% endblock %}

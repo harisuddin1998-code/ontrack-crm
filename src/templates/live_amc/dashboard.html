@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .lucide-icon { width: 16px; height: 16px; display: inline-block; vertical-align: text-bottom; }
+
+    .lamc-day-strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 22px; }
+    .lamc-day-cell {
+        min-width: 44px; padding: 6px 4px; border-radius: 8px; text-align: center;
+        border: 1px solid #e2e8f0; background: #ffffff; text-decoration: none; color: #334155;
+        font-size: 12px; transition: all .15s ease;
+    }
+    .lamc-day-cell:hover { border-color: #6B8DD6; text-decoration: none; }
+    .lamc-day-cell .d-num { display: block; font-weight: 700; font-size: 14px; }
+    .lamc-day-cell .d-count { display: block; font-size: 10px; color: #94a3b8; }
+    .lamc-day-cell.has-due .d-count { color: #dc2626; font-weight: 700; }
+    .lamc-day-cell.is-today { border-color: #10b981; background: #f0fdf4; box-shadow: 0 0 0 2px rgba(16,185,129,.2); }
+    .lamc-day-cell.is-selected { border-color: #6B8DD6; background: #eff6ff; box-shadow: 0 0 0 2px rgba(107,141,214,.25); }
+    .lamc-day-cell.is-future { opacity: .65; }
+
+    .lamc-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; justify-content: center; align-items: center; padding: 20px; }
+    .lamc-modal { background: var(--odoo-white); width: 100%; max-width: 520px; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.18); display: flex; flex-direction: column; max-height: 90vh; }
+    .lamc-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--odoo-border); background: var(--odoo-secondary); border-radius: 12px 12px 0 0; }
+    .lamc-modal-header h3 { margin: 0; font-size: 16px; color: var(--odoo-primary-dark); }
+    .lamc-modal-close { background: none; border: none; font-size: 24px; color: var(--odoo-text-light); cursor: pointer; line-height: 1; }
+    /* The <form> sits between the modal and its body/footer, so it is what
+       the flex column actually contains. Without these the modal capped at
+       90vh while the form kept its full height and pushed the footer past
+       the bottom of the screen, putting Submit out of reach on a short
+       window. Same fix as the Annual Recovery modal. */
+    .lamc-modal > form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .lamc-modal { overflow: hidden; }
+    .lamc-modal-header, .lamc-modal-footer { flex: none; }
+    .lamc-modal-body { padding: 24px; overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; }
+    .lamc-modal-body .o_field_group { margin-bottom: 16px; }
+    .lamc-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .lamc-modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--odoo-border); background: var(--odoo-secondary); border-radius: 0 0 12px 12px; }
+    .lamc-outstanding-field { background: #FFF8E1 !important; color: #F57C00 !important; font-weight: 700 !important; }
+</style>
+
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="calendar-clock" style="color: var(--odoo-primary);"></i> Live AMC Recovery
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                AMC renews annually on the vehicle's installation anniversary. Every day, whichever vehicles' install date
+                matches today's day &amp; month &mdash; across every install year on record &mdash; become due and are
+                round-robin assigned across Recovery Officers.
+            </p>
+        </div>
+        {% if current_user.is_admin() or current_user.is_manager() %}
+        <form method="POST" action="{{ url_for('live_amc.generate') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="date" value="{{ target_date.isoformat() }}">
+            <button type="submit" class="pastel-btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="refresh-cw" class="lucide-icon"></i> Generate / Refresh {{ target_date.strftime('%d %b') }}
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if not officers %}
+    <div class="o_badge o_badge_danger" style="display: block; padding: 10px 14px; margin-bottom: 16px; font-size: 13px;">
+        <i data-lucide="alert-triangle"></i> No active Recovery Officers are configured yet - assign the "AMC / Annual Recovery Officer" role
+        to users under User Management so due vehicles can actually be distributed.
+    </div>
+    {% endif %}
+
+    <!-- Year / Month selectors -->
+    <form method="GET" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 6px;">
+        <div>
+            <label class="field-label" style="display:block; font-size: 11px; color: var(--odoo-text-light);">Year</label>
+            <select name="year" class="o_field_widget" onchange="this.form.submit()">
+                {% for y in range(2019, 2019 + 100) %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="field-label" style="display:block; font-size: 11px; color: var(--odoo-text-light);">Month</label>
+            <select name="month" class="o_field_widget" onchange="this.form.submit()">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ calendar_month_names[m] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <input type="hidden" name="day" value="1">
+    </form>
+
+    <!-- Day strip for the selected month -->
+    <div class="lamc-day-strip">
+        {% for cell in month_matrix %}
+        <a href="{{ url_for('live_amc.dashboard', year=year, month=month, day=cell.day) }}"
+           class="lamc-day-cell {% if cell.count > 0 %}has-due{% endif %} {% if cell.is_today %}is-today{% endif %} {% if cell.day == day %}is-selected{% endif %} {% if cell.is_future %}is-future{% endif %}"
+           title="{{ cell.count }} vehicle(s) due">
+            <span class="d-num">{{ cell.day }}</span>
+            <span class="d-count">{{ cell.count if cell.count else '' }}</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <h4 style="margin: 20px 0 12px; color: var(--odoo-primary-dark); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="calendar-days" style="color: var(--odoo-primary);"></i> {{ target_date.strftime('%d %B %Y') }}
+        {% if target_date == today %}<span class="o_badge o_badge_success">LIVE &mdash; TODAY</span>{% endif %}
+    </h4>
+
+    {% if preview_count is not none %}
+    <div class="o_badge o_badge_info" style="display: block; padding: 10px 14px; margin-bottom: 16px; font-size: 13px;">
+        <i data-lucide="clock"></i> This is a future date. <strong>{{ preview_count }}</strong> vehicle(s) will become due when this day arrives -
+        assignments are generated live, day by day, not in advance.
+    </div>
+    {% elif target_date < today and not assignments %}
+    <div class="o_badge o_badge_secondary" style="display: block; padding: 10px 14px; margin-bottom: 16px; font-size: 13px;">
+        <i data-lucide="info"></i> No assignments were generated for this date (it passed with nothing due, or before this module existed).
+    </div>
+    {% endif %}
+
+    {% if assignments %}
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Reg No</th>
+                    <th>Install Date</th>
+                    <th>AMC</th>
+                    <th>Recovered</th>
+                    <th>Outstanding</th>
+                    <th>Status</th>
+                    <th>Sheet</th>
+                    <th>Remarks</th>
+                    {% if current_user.is_admin() or current_user.is_manager() %}<th>Officer</th>{% endif %}
+                    <th>Today's Progress</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                {% set v = a.vehicle %}
+                <tr class="o_list_record">
+                    <td><strong>{{ v.reg_no }}</strong></td>
+                    <td>{{ v.installation_date }}</td>
+                    <td>PKR {{ '{:,.0f}'.format(v.amc_charges or 0) }}</td>
+                    <td>PKR {{ '{:,.0f}'.format(v.recovered_amount or 0) }}</td>
+                    <td><strong style="color:#c2410c;">PKR {{ '{:,.0f}'.format(v.get_outstanding()) }}</strong></td>
+                    <td>
+                        <span class="o_badge {% if v.status == 'RECOVERED' %}o_badge_success{% elif v.status == 'LOST' %}o_badge_danger{% elif v.status == 'FOLLOWUP' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                            {{ v.status }}
+                        </span>
+                    </td>
+                    <td>{{ v.sheet_name or '-' }}</td>
+                    <td style="max-width: 160px;">{{ v.remarks or '-' }}</td>
+                    {% if current_user.is_admin() or current_user.is_manager() %}
+                    <td>{{ a.assigned_officer.name if a.assigned_officer else (a.assigned_officer.username if a.assigned_officer else 'Unassigned') }}</td>
+                    {% endif %}
+                    <td>
+                        <span class="o_badge {% if a.work_status == 'RECOVERED' %}o_badge_success{% elif a.work_status == 'ESCALATED' %}o_badge_danger{% elif a.work_status == 'CONTACTED' %}o_badge_info{% elif a.work_status == 'SKIPPED' %}o_badge_secondary{% else %}o_badge_warning{% endif %}">
+                            {{ a.work_status }}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="display: flex; flex-direction: column; gap: 6px; min-width: 190px;">
+                            {% if v.status not in ['RECOVERED', 'LOST'] %}
+                            <button type="button" class="pastel-btn-primary" style="padding: 4px 10px; font-size: 12px;"
+                                onclick="openRecoveryModal({{ v.id }}, '{{ v.reg_no }}', {{ v.amc_charges or 0 }}, {{ v.get_outstanding() }})">
+                                <i data-lucide="banknote" class="lucide-icon"></i> Record Recovery
+                            </button>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('live_amc.update_assignment', assignment_id=a.id) }}" style="display: flex; gap: 4px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <select name="work_status" class="o_field_widget" style="padding: 3px 4px; font-size: 11px;">
+                                    <option value="PENDING" {% if a.work_status == 'PENDING' %}selected{% endif %}>Pending</option>
+                                    <option value="CONTACTED" {% if a.work_status == 'CONTACTED' %}selected{% endif %}>Contacted</option>
+                                    <option value="ESCALATED" {% if a.work_status == 'ESCALATED' %}selected{% endif %}>Escalated</option>
+                                    <option value="SKIPPED" {% if a.work_status == 'SKIPPED' %}selected{% endif %}>Skipped</option>
+                                </select>
+                                <button type="submit" class="pastel-btn-secondary" style="padding: 3px 8px; font-size: 11px;">Save</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Record Recovery Modal (reuses the Annual Recovery module's own recording endpoint,
+     so there's exactly one place that ever mutates AMC recovered/outstanding amounts) -->
+<div class="lamc-modal-overlay" id="recoveryModal">
+    <div class="lamc-modal">
+        <div class="lamc-modal-header">
+            <h3><i data-lucide="banknote"></i> Record Recovery Payment</h3>
+            <button class="lamc-modal-close" onclick="closeRecoveryModal()">&times;</button>
+        </div>
+        <form id="recoveryForm" onsubmit="submitRecovery(event)">
+            <div class="lamc-modal-body">
+                <input type="hidden" id="recVehicleId">
+                <div class="o_field_group">
+                    <label class="o_field_label" for="recRegNo">Vehicle Registration</label>
+                    <input type="text" id="recRegNo" class="o_field_widget" readonly>
+                </div>
+                <div class="lamc-modal-row">
+                    <div class="o_field_group">
+                        <label class="o_field_label" for="recAmc">AMC Charges</label>
+                        <input type="text" id="recAmc" class="o_field_widget" readonly>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label" for="recOutstanding">Outstanding</label>
+                        <input type="text" id="recOutstanding" class="o_field_widget lamc-outstanding-field" readonly>
+                    </div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="recAmount">Payment Amount (PKR)</label>
+                    <input type="number" step="0.01" id="recAmount" class="o_field_widget" required>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="recMethod">Payment Method</label>
+                    <select id="recMethod" class="o_field_widget" onchange="togglePaymentFields()">
+                        <option value="Online Payment">Online Payment</option>
+                        <option value="Cash Payment">Cash Payment</option>
+                        <option value="Cheque">Cheque</option>
+                    </select>
+                </div>
+                <div id="chequeFieldGroup" class="o_field_group" style="display: none;">
+                    <label class="o_field_label" for="recChequeStatus">Cheque Status</label>
+                    <select id="recChequeStatus" class="o_field_widget">
+                        <option value="Cleared">Cleared</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Bounced">Bounced</option>
+                    </select>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="recReference" id="recReferenceLabel">Reference / Receipt No.</label>
+                    <input type="text" id="recReference" class="o_field_widget" placeholder="e.g. TRX-982341">
+                </div>
+                <div id="proofFieldGroup" class="o_field_group" style="display: none;">
+                    <label class="o_field_label" for="recProofFile">Proof of Payment (JPG/PNG) <span style="color:#dc2626;">*</span></label>
+                    <input type="file" id="recProofFile" class="o_field_widget" accept=".jpg,.jpeg,.png">
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label" for="recNotes">Notes / Remarks</label>
+                    <textarea id="recNotes" class="o_field_widget" rows="2"></textarea>
+                </div>
+                <div style="margin-top: 8px; padding: 10px 12px; background: var(--odoo-secondary); border-radius: 8px;">
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="recForceFull"> Mark as Fully Recovered (write-off remaining)
+                    </label>
+                </div>
+            </div>
+            <div class="lamc-modal-footer">
+                <button type="button" class="pastel-btn-secondary" onclick="closeRecoveryModal()">Cancel</button>
+                <button type="submit" class="pastel-btn-primary"><i data-lucide="check" class="lucide-icon"></i> Submit Recovery</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showModal(id) { document.getElementById(id).style.display = 'flex'; }
+function hideModal(id) { document.getElementById(id).style.display = 'none'; }
+function fmt(n) { return Math.round(n||0).toLocaleString(); }
+
+function openRecoveryModal(vId, regNo, amc, out) {
+    document.getElementById('recVehicleId').value = vId;
+    document.getElementById('recRegNo').value = regNo;
+    document.getElementById('recAmc').value = 'PKR ' + fmt(amc);
+    document.getElementById('recOutstanding').value = 'PKR ' + fmt(out);
+    document.getElementById('recAmount').value = Math.round(out);
+    document.getElementById('recMethod').value = 'Cash Payment';
+    document.getElementById('recReference').value = '';
+    document.getElementById('recNotes').value = '';
+    document.getElementById('recForceFull').checked = false;
+    document.getElementById('recProofFile').value = '';
+    togglePaymentFields();
+    showModal('recoveryModal');
+}
+function closeRecoveryModal() { hideModal('recoveryModal'); }
+function togglePaymentFields() {
+    const method = document.getElementById('recMethod').value;
+    document.getElementById('chequeFieldGroup').style.display = method === 'Cheque' ? 'block' : 'none';
+    document.getElementById('proofFieldGroup').style.display = method === 'Online Payment' ? 'block' : 'none';
+    document.getElementById('recProofFile').required = method === 'Online Payment';
+    document.getElementById('recReferenceLabel').textContent = method === 'Cheque' ? 'Cheque No.' : (method === 'Online Payment' ? 'Transaction ID' : 'Reference No.');
+}
+function submitRecovery(e) {
+    e.preventDefault();
+    const method = document.getElementById('recMethod').value;
+    const proofInput = document.getElementById('recProofFile');
+    if (method === 'Online Payment' && !proofInput.files.length) {
+        alert('Proof of payment is required for online payments.');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('vehicleId', document.getElementById('recVehicleId').value);
+    formData.append('amount', document.getElementById('recAmount').value);
+    formData.append('paymentMethod', method);
+    formData.append('chequeStatus', document.getElementById('recChequeStatus').value);
+    formData.append('referenceNo', document.getElementById('recReference').value);
+    formData.append('notes', document.getElementById('recNotes').value);
+    formData.append('forceFullyRecovered', document.getElementById('recForceFull').checked);
+    if (proofInput.files.length) formData.append('proofFile', proofInput.files[0]);
+
+    fetch('{{ url_for("annual_recovery.recover_amount") }}', {method:'POST', headers:{'X-CSRFToken': "{{ csrf_token() }}"}, body:formData})
+        .then(r=>r.json()).then(r=>{
+            if (r.success) { window.location.reload(); }
+            else { alert(r.message || 'Error'); }
+        });
+}
+</script>
+{% endblock %}

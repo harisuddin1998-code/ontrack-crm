@@ -1,0 +1,186 @@
+{# Period-scoped dashboard sections, shared by Administration and Executive.
+
+   Both boards include this one file, fed by one backend helper
+   (_period_dashboard_context), so neither can end up with a section the
+   other has. Every card is a link, and every link carries the timeframe it
+   was counted over - `since=` - so the number on the card is the number of
+   records you land on. #}
+
+<div class="o_section_header">
+    <h3><i data-lucide="line-chart"></i> Operations KPIs ({{ period_label }})</h3>
+    <span class="o_period_chip_static">{{ period_range_label }}</span>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('admin.pos_list', status='COMPLETED', since=period_start_str) }}"
+        class="o_stat_card o_stat_blue">
+        <span class="o_stat_label"><i data-lucide="hammer"></i> Fresh Installations</span>
+        <div class="o_stat_value">{{ completed_fresh|count_fmt }} / {{ total_fresh|count_fmt }}</div>
+        <div class="o_stat_hint">completed of raised</div>
+    </a>
+
+    <a href="{{ url_for('redo.dashboard', since=period_start_str, show_completed='true') }}"
+        class="o_stat_card o_stat_amber">
+        <span class="o_stat_label"><i data-lucide="rotate-cw"></i> REDO / Repairs</span>
+        <div class="o_stat_value">{{ completed_redos|count_fmt }} / {{ total_redos|count_fmt }}</div>
+        <div class="o_stat_hint">reworks completed</div>
+    </a>
+
+    <a href="{{ url_for('annual_recovery.dashboard') }}" class="o_stat_card o_stat_green">
+        <span class="o_stat_label"><i data-lucide="dollar-sign"></i> AMC Recovery</span>
+        {# Headline figures, so whole rupees - the paisa is noise on a card and
+           pushes the number out of its box. The ledgers still show it.
+
+           Two different events, so two different dates: money is dated by the
+           payment that recovered it, billing by the vehicle that was added. #}
+        <div class="o_stat_value">{{ recovered_amc_amount|money_pkr_round }}</div>
+        <div class="o_stat_hint">recovered; {{ total_amc_amount|money_pkr_round }} newly billed</div>
+    </a>
+
+    <a href="{{ url_for('removal.dashboard') }}" class="o_stat_card o_stat_sky">
+        <span class="o_stat_label"><i data-lucide="repeat"></i> Removals &amp; Transfers</span>
+        <div class="o_stat_value">{{ completed_removals|count_fmt }} / {{ total_removals|count_fmt }}</div>
+        <div class="o_stat_hint">executed</div>
+    </a>
+
+    <a href="{{ url_for('payment.installation_recovery_dashboard') }}" class="o_stat_card o_stat_mint">
+        <span class="o_stat_label"><i data-lucide="hard-drive"></i> Installation Recovery</span>
+        <div class="o_stat_value">{{ installation_recovery_income|money_pkr_round }}</div>
+        <div class="o_stat_hint">income received</div>
+    </a>
+
+    <a href="{{ url_for('redo.non_reporting_dashboard') }}" class="o_stat_card o_stat_rose">
+        <span class="o_stat_label"><i data-lucide="wifi-off"></i> Non-Reporting (NR)</span>
+        <div class="o_stat_value">{{ non_reporting_count|count_fmt }}</div>
+        <div class="o_stat_hint">vehicles flagged offline in period</div>
+    </a>
+
+    <a href="{{ url_for('inventory.stock') }}" class="o_stat_card o_stat_amber">
+        <span class="o_stat_label"><i data-lucide="boxes"></i> Stock &amp; Accessories</span>
+        <div class="o_stat_value">{{ stock_shortage_count|count_fmt }}</div>
+        <div class="o_stat_hint">items short in period</div>
+    </a>
+
+    <a href="{{ url_for('complaint.dashboard') }}" class="o_stat_card o_stat_lilac">
+        <span class="o_stat_label"><i data-lucide="headphones"></i> Complaints</span>
+        <div class="o_stat_value">{{ resolved_complaints|count_fmt }} / {{ total_complaints|count_fmt }}</div>
+        <div class="o_stat_hint">{{ open_complaints|count_fmt }} still open</div>
+    </a>
+</div>
+
+{# Where the work is concentrated. Three, because the question the card
+   answers is "which cities are busy", not "list every city on the books". #}
+<div class="o_section_header">
+    <h3><i data-lucide="map-pin"></i> Top Cities by Purchase Orders ({{ period_label }})</h3>
+    <a href="{{ url_for('admin.mis_report_view', slug='installations-by-city') }}"
+        class="o_icon_btn o_icon_btn_view" title="Open the full city report"
+        aria-label="Open the full city report"><i data-lucide="arrow-right"></i></a>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    {% for entry in top_cities %}
+    <a href="{{ url_for('admin.pos_list', city=entry.city, since=period_start_str) }}"
+        class="o_stat_card {{ ['o_stat_teal', 'o_stat_sky', 'o_stat_lilac'][loop.index0] }}">
+        <span class="o_stat_label">
+            <i data-lucide="{{ 'trophy' if loop.first else 'map-pin' }}"></i>
+            {{ loop.index }}. {{ entry.city }}
+        </span>
+        <div class="o_stat_value">{{ entry.count|count_fmt }}</div>
+        <div class="o_stat_hint">purchase orders raised</div>
+    </a>
+    {% else %}
+    <div class="o_stat_card o_stat_grey" style="cursor: default;">
+        <span class="o_stat_label"><i data-lucide="map-pin"></i> No Cities</span>
+        <div class="o_stat_value">0</div>
+        <div class="o_stat_hint">no POs raised in this period</div>
+    </div>
+    {% endfor %}
+</div>
+
+{# REDO turnaround. Each card opens the REDO wallboard filtered to the band
+   it counted, so "Breached: 7" lands on those seven activities. #}
+<div class="o_section_header">
+    <h3><i data-lucide="timer"></i> REDO Turnaround ({{ period_label }})</h3>
+    <a href="{{ url_for('redo.dashboard') }}" class="o_icon_btn o_icon_btn_view"
+        title="Open the REDO activities wallboard"
+        aria-label="Open the REDO activities wallboard"><i data-lucide="arrow-right"></i></a>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('redo.dashboard', status='PENDING', since=period_start_str) }}"
+        class="o_stat_card o_stat_amber">
+        <span class="o_stat_label"><i data-lucide="clock"></i> Pending</span>
+        <div class="o_stat_value">{{ redo_pending|count_fmt }}</div>
+        <div class="o_stat_hint">awaiting a technician</div>
+    </a>
+    <a href="{{ url_for('redo.dashboard', status='IN_PROGRESS', since=period_start_str) }}"
+        class="o_stat_card o_stat_sky">
+        <span class="o_stat_label"><i data-lucide="play"></i> In Progress</span>
+        <div class="o_stat_value">{{ redo_in_progress|count_fmt }}</div>
+        <div class="o_stat_hint">being worked on</div>
+    </a>
+    <a href="{{ url_for('redo.dashboard', aging='over24', since=period_start_str) }}"
+        class="o_stat_card o_stat_peach">
+        <span class="o_stat_label"><i data-lucide="alert-circle"></i> Over 24h</span>
+        <div class="o_stat_value">{{ sla_warning|count_fmt }}</div>
+        <div class="o_stat_hint">24-36 hours old</div>
+    </a>
+    <a href="{{ url_for('redo.dashboard', aging='over36', since=period_start_str) }}"
+        class="o_stat_card o_stat_rose">
+        <span class="o_stat_label"><i data-lucide="alert-triangle"></i> Over 36h</span>
+        <div class="o_stat_value">{{ sla_critical|count_fmt }}</div>
+        <div class="o_stat_hint">36-48 hours old</div>
+    </a>
+    <a href="{{ url_for('redo.dashboard', aging='breached', since=period_start_str) }}"
+        class="o_stat_card o_stat_grey">
+        <span class="o_stat_label"><i data-lucide="octagon-alert"></i> Breached</span>
+        <div class="o_stat_value">{{ sla_breached|count_fmt }}</div>
+        <div class="o_stat_hint">past 48 hours</div>
+    </a>
+</div>
+
+<div class="o_list_view" style="margin-top: 22px;">
+    <div class="o_section_header o_section_header_flush">
+        <h3><i data-lucide="trophy"></i> Technician Performance KPIs ({{ period_label }})</h3>
+        {# The full grid is a catalogue report now, and it opens on the period
+           this section is showing - same convention as the KPI cards, where a
+           figure and the list behind it are the same set. #}
+        <a href="{{ url_for('admin.mis_report_view', slug='technician-performance', **{'from': period_start_str, 'to': period_end_str}) }}"
+            class="o_icon_btn o_icon_btn_view"
+            title="Open the full technician performance report"
+            aria-label="Open the full technician performance report"><i data-lucide="arrow-right"></i></a>
+    </div>
+    {# Broken out by activity - Installation, REDO, Removal, Transfer - because
+       "12 jobs" says nothing about what a technician actually spent the month
+       doing, and the four activities are not interchangeable work. Every
+       column counts completed jobs, so the four add up to the total. #}
+    <table class="o_list_table">
+        <thead>
+            <tr class="o_list_header">
+                <th>Technician</th>
+                <th>Assigned Bike</th>
+                <th class="o_amount">Installations</th>
+                <th class="o_amount">REDOs / Repairs</th>
+                <th class="o_amount">Removals</th>
+                <th class="o_amount">Transfers</th>
+                <th class="o_amount">Total Completed Jobs</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tech in tech_kpis %}
+            <tr class="o_list_record">
+                <td><strong>{{ tech.name }}</strong></td>
+                <td><code>{{ tech.bike }}</code></td>
+                <td class="o_amount"><span class="o_badge o_badge_info">{{ tech.installations|count_fmt }}</span></td>
+                <td class="o_amount"><span class="o_badge o_badge_warning">{{ tech.redos|count_fmt }}</span></td>
+                <td class="o_amount"><span class="o_badge o_badge_secondary">{{ tech.removals|count_fmt }}</span></td>
+                <td class="o_amount"><span class="o_badge o_badge_info">{{ tech.transfers|count_fmt }}</span></td>
+                <td class="o_amount"><span class="o_badge o_badge_success"
+                        style="font-weight: 700;">{{ tech.total_jobs|count_fmt }}</span></td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                    No performance data found for this period</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

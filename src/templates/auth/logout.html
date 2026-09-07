@@ -1,0 +1,19 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container" style="max-width: 400px; margin: 60px auto;">
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Logged Out</h2>
+            <p class="o_form_subtitle">You have been successfully logged out</p>
+        </div>
+        <div class="o_form_body" style="text-align: center; padding: 40px;">
+            <i class="fas fa-check-circle" style="font-size: 48px; color: var(--odoo-success-dark);"></i>
+            <p style="margin-top: 20px;">Thank you for using ON TRACK</p>
+            <div class="o_action_bar">
+                <a href="{{ url_for('auth.login') }}" class="o_button"><i class="fas fa-sign-in-alt"></i> Login Again</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

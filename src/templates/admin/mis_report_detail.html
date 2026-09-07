@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block content %}
+{# One template renders every catalogue report. The view hands over `columns`
+   (what each column is called and how it should be drawn) and `rows` (plain
+   dicts keyed by column), so adding a report is a builder function and a
+   registry entry - not another near-identical page to keep in step. #}
+<div class="o_container_fluid">
+    <div class="o_rpt_head">
+        <div class="o_rpt_naming">
+            <a href="{{ url_for('admin.mis_reports') }}" class="o_rpt_back">
+                <i data-lucide="arrow-left"></i> All Reports
+            </a>
+            <h1 class="o_page_title" style="margin: 6px 0 0; border: none; padding: 0;">
+                <i data-lucide="{{ report['icon'] }}" style="color: var(--odoo-primary);"></i>
+                {{ report['name'] }}
+            </h1>
+            <p class="o_rpt_sub">{{ report['summary'] }}</p>
+        </div>
+    </div>
+
+    <form method="get" class="o_rpt_period"
+        action="{{ url_for('admin.mis_report_view', slug=report['slug']) }}">
+        <span class="o_rpt_period_label"><i data-lucide="calendar-range"></i> Period</span>
+        <label class="o_rpt_date"><span>From</span>
+            <input type="date" name="from" value="{{ date_range.from_str }}"
+                class="o_field_widget no-uppercase">
+        </label>
+        <label class="o_rpt_date"><span>To</span>
+            <input type="date" name="to" value="{{ date_range.to_str }}"
+                class="o_field_widget no-uppercase">
+        </label>
+        {# A report may declare one picker beyond the period - see
+           MIS_REPORT_FILTERS. It sits inside this form, so Apply and Download
+           Excel both carry the selection and the file matches the screen. #}
+        {% if report_filter %}
+        <label class="o_rpt_date"><span>{{ report_filter.label }}</span>
+            <select name="{{ report_filter.name }}" class="o_field_widget no-uppercase">
+                <option value="">{{ report_filter.all_label }}</option>
+                {% for value, label in report_filter.options %}
+                <option value="{{ value }}" {% if report_filter.selected == value %}selected{% endif %}>
+                    {{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        {% endif %}
+        <button type="submit" class="o_button"><i data-lucide="filter"></i> Apply</button>
+        <a href="{{ url_for('admin.mis_report_view', slug=report['slug']) }}"
+            class="o_button o_button_secondary">
+            <i data-lucide="rotate-ccw"></i> This Month
+        </a>
+        {% if report['export_url'] %}
+        <button type="submit" class="o_button o_button_secondary"
+            formaction="{{ report['export_url'] }}">
+            <i data-lucide="file-down"></i> Download Excel
+        </button>
+        {% endif %}
+        <span class="o_rpt_showing">Showing <strong>{{ date_range.label }}</strong></span>
+    </form>
+
+    {% if note %}
+    <p class="o_rpt_note">{{ note }}</p>
+    {% endif %}
+
+    {% for table in tables %}
+    {% set columns = table['columns'] %}
+    {% if table['title'] %}
+    <div class="o_section_header">
+        <h3><i data-lucide="{{ table.get('icon', 'table') }}"></i> {{ table['title'] }}</h3>
+        <span class="o_period_chip_static">{{ table['rows']|length }} records</span>
+    </div>
+    {% endif %}
+    <div class="o_list_view" {% if not loop.first %}style="margin-top: 4px;" {% endif %}>
+        <table class="o_list_table">
+            <thead>
+                <tr class="o_list_header">
+                    {% for col in columns %}
+                    <th{% if col.get('align') == 'amount' %} class="o_amount" {% endif %}>{{ col['label'] }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in table['rows'] %}
+                <tr class="o_list_record">
+                    {% for col in columns %}
+                    <td{% if col.get('align') == 'amount' %} class="o_amount" {% endif %}>
+                        {% set value = row[col['key']] %}
+                        {% if col.get('bar') %}
+                        <div class="o_rpt_bar">
+                            <div class="o_rpt_bar_track">
+                                {# Width comes off a data attribute so the row's
+                                   value stays out of the stylesheet. #}
+                                <div class="o_rpt_bar_fill" data-share="{{ value }}"></div>
+                            </div>
+                            <span class="o_rpt_bar_value">{{ value }}%</span>
+                        </div>
+                        {% elif col.get('money') %}
+                        {# Money keeps its two decimals. Without this it fell
+                           through to count_fmt, which rounds to whole units -
+                           fine for a count of invoices, wrong for an amount
+                           on a financial report. The row still holds the raw
+                           number, so the Excel export gets a figure it can
+                           total rather than a formatted string. #}
+                        {{ value|money(false) }}
+                        {% elif col.get('badge') %}
+                        <span class="o_badge o_badge_{{ col['badge'] }}">{{ value|count_fmt if value is number else value }}</span>
+                        {% elif col.get('strong') %}
+                        <strong>{{ value }}</strong>{% if col.get('flag') and row[col['flag']] %}
+                        <span class="o_badge o_badge_success">{{ col.get('flag_label', 'Top') }}</span>{% endif %}
+                        {% else %}
+                        {{ value|count_fmt if value is number else value }}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ columns|length }}" class="o_rpt_empty">
+                        {{ table.get('empty', 'Nothing recorded for this period') }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .o_rpt_head {
+        margin-bottom: 16px;
+    }
+
+    .o_rpt_back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--odoo-text-light);
+        text-decoration: none;
+    }
+
+    .o_rpt_back:hover {
+        color: var(--odoo-primary-dark);
+    }
+
+    .o_rpt_back i {
+        width: 13px;
+        height: 13px;
+    }
+
+    .o_rpt_sub {
+        color: var(--odoo-text-light);
+        font-size: 12px;
+        margin: 6px 0 0;
+        max-width: 76ch;
+    }
+
+    .o_rpt_period {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+        background: var(--odoo-white);
+        border: 1px solid var(--odoo-border);
+        border-radius: 12px;
+        padding: 12px 16px;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 16px;
+    }
+
+    .o_rpt_period_label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: var(--odoo-text-muted);
+        padding-bottom: 9px;
+    }
+
+    .o_rpt_date {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .o_rpt_date span {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--odoo-text-light);
+    }
+
+    .o_rpt_date input {
+        width: 155px;
+    }
+
+    .o_rpt_showing {
+        font-size: 11.5px;
+        color: var(--odoo-text-light);
+        padding-bottom: 9px;
+        margin-left: auto;
+    }
+
+    .o_rpt_note {
+        color: var(--odoo-text-light);
+        font-size: 11.5px;
+        margin: 0 0 12px;
+        max-width: 90ch;
+    }
+
+    .o_rpt_empty {
+        text-align: center;
+        color: var(--odoo-text-light);
+        padding: 30px;
+    }
+
+    .o_rpt_bar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+    }
+
+    .o_rpt_bar_track {
+        flex: 1;
+        min-width: 80px;
+        max-width: 190px;
+        height: 7px;
+        background: var(--odoo-primary-soft);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .o_rpt_bar_fill {
+        height: 100%;
+        border-radius: 6px;
+        background: linear-gradient(90deg, var(--odoo-primary-light) 0%, var(--odoo-primary) 100%);
+    }
+
+    .o_rpt_bar_value {
+        font-size: 11.5px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--odoo-text-light);
+    }
+
+    @media (max-width: 900px) {
+        .o_rpt_date input {
+            width: 100%;
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.o_rpt_bar_fill[data-share]').forEach(function (bar) {
+            bar.style.width = (parseFloat(bar.dataset.share) || 0) + '%';
+        });
+    });
+</script>
+{% endblock %}

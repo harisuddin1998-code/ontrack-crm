@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+
+    <div class="o_dashboard_topbar">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="clipboard-list" style="color: var(--odoo-primary);"></i> My Complaints
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Every ticket you have reported, and where it has got to.
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            {# Status here follows the Complaint Manager's board without a
+               reload - when they resolve a ticket, this page updates. #}
+            {% set sync_endpoint = url_for('complaint.api_my_sync') %}
+            {% include '_live_sync.html' %}
+            <a href="{{ url_for('complaint.new') }}" class="o_button pastel-btn-primary">
+                <i data-lucide="plus-circle"></i> Log Complaint
+            </a>
+        </div>
+    </div>
+
+    {# Only this user's own tickets are counted here - the scoping is in the
+       query, not in these cards. Each card filters the list below it. #}
+    <div class="o_kanban_stats">
+        <a href="{{ url_for('complaint.my_complaints') }}"
+            class="o_stat_card o_stat_blue {% if not status %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="ticket"></i> My Tickets</span>
+            <div class="o_stat_value" data-sync="c_total">{{ sync.c_total }}</div>
+            <div class="o_stat_hint">complaints you reported</div>
+        </a>
+
+        <a href="{{ url_for('complaint.my_complaints', status='OPEN') }}"
+            class="o_stat_card o_stat_lilac {% if status == 'OPEN' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="alert-circle"></i> Open</span>
+            <div class="o_stat_value" data-sync="c_open">{{ sync.c_open }}</div>
+            <div class="o_stat_hint">not yet picked up</div>
+        </a>
+
+        <a href="{{ url_for('complaint.my_complaints', status='IN_PROGRESS') }}"
+            class="o_stat_card o_stat_sky {% if status == 'IN_PROGRESS' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="loader"></i> In Progress</span>
+            <div class="o_stat_value" data-sync="c_in_progress">{{ sync.c_in_progress }}</div>
+            <div class="o_stat_hint">being worked on</div>
+        </a>
+
+        <a href="{{ url_for('complaint.my_complaints', status='RESOLVED') }}"
+            class="o_stat_card o_stat_green {% if status == 'RESOLVED' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="check-circle-2"></i> Resolved</span>
+            <div class="o_stat_value" data-sync="c_resolved">{{ sync.c_resolved }}</div>
+            <div class="o_stat_hint">closed out</div>
+        </a>
+    </div>
+
+    <div class="o_list_view" style="margin-top: 24px;">
+        <div class="o_section_header o_section_header_flush">
+            <h3><i data-lucide="history"></i> Ticket History</h3>
+        </div>
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Complaint No</th>
+                    <th>Date</th>
+                    <th>Details</th>
+                    <th>Status</th>
+                    <th>Resolution / Remarks</th>
+                    <th>Resolved On</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in complaints %}
+                <tr class="o_list_record">
+                    <td><strong>{{ c.ticket_no }}</strong>
+                        <div style="font-size: 11.5px; color: var(--odoo-text-muted);">
+                            {{ c.complaint_type.replace('_', ' ') }}
+                            {% if c.reg_no %} &middot; {{ c.reg_no }}{% endif %}
+                        </div>
+                    </td>
+                    <td style="white-space: nowrap;">{{ c.created_at.strftime('%d %b %Y %H:%M') if c.created_at else '—'
+                        }}</td>
+                    <td style="max-width: 340px;">{{ c.description }}</td>
+                    {# The status cell is what the live sync rewrites. The
+                       badge colour is set on load and left alone: recolouring
+                       from JS would mean a second copy of the status-to-colour
+                       mapping that could disagree with Jinja's. #}
+                    <td>
+                        <span
+                            class="o_badge {% if c.status == 'RESOLVED' %}o_badge_success{% elif c.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}"
+                            data-sync="ticket_{{ c.id }}_status">{{ c.status }}</span>
+                    </td>
+                    <td style="max-width: 300px;" data-sync="ticket_{{ c.id }}_resolution">
+                        {{ c.resolution_notes or '—' }}
+                    </td>
+                    <td style="white-space: nowrap;" data-sync="ticket_{{ c.id }}_resolved_at">
+                        {{ c.resolved_at.strftime('%d %b %Y %H:%M') if c.resolved_at else '—' }}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: var(--odoo-text-light); padding: 34px;">
+                        {% if status %}
+                        You have no {{ status.replace('_', ' ')|lower }} complaints.
+                        <a href="{{ url_for('complaint.my_complaints') }}">Show all</a>
+                        {% else %}
+                        You have not reported any complaints yet.
+                        <a href="{{ url_for('complaint.new') }}">Log your first one</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .o_dashboard_topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}

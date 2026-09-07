@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Fuel Reimbursement Invoice - {{ invoice.invoice_number }}</title>
+    <style>
+        /* Laid out in tables throughout. wkhtmltopdf runs an old WebKit whose
+           flex and grid support is unreliable, and a claim document that
+           reflows differently on the accountant's copy than on the screen it
+           was approved from is worse than a plain one. */
+        @page {
+            margin: 14mm 12mm;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #2B3245;
+            margin: 0;
+            font-size: 11px;
+            line-height: 1.45;
+        }
+
+        /* ---------- masthead ---------- */
+        .masthead {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 3px solid #5478C0;
+            padding-bottom: 0;
+        }
+
+        .masthead td {
+            vertical-align: middle;
+            padding: 0 0 12px 0;
+        }
+
+        /* Height only, no width - a width alongside it makes wkhtmltopdf
+           stretch the mark to both and squash the logo. */
+        .logo {
+            height: 54px;
+            width: auto;
+        }
+
+        .company-name {
+            font-size: 17px;
+            font-weight: bold;
+            color: #2B3245;
+            letter-spacing: 0.3px;
+        }
+
+        .company-line {
+            font-size: 10px;
+            color: #6B7385;
+        }
+
+        .masthead .company-block {
+            text-align: right;
+        }
+
+        /* ---------- invoice identity strip ---------- */
+        .identity {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .identity td {
+            padding: 10px 14px;
+            vertical-align: middle;
+        }
+
+        .identity .doc-type {
+            background: #5478C0;
+            color: #FFFFFF;
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: 1.4px;
+            width: 58%;
+        }
+
+        .identity .doc-number {
+            background: #EEF2FB;
+            color: #2B3245;
+            text-align: right;
+            font-size: 11px;
+        }
+
+        .identity .doc-number strong {
+            font-size: 13px;
+            color: #3B5599;
+        }
+
+        /* ---------- who and when ---------- */
+        .parties {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 10px 0;
+            margin: 14px -10px 18px -10px;
+        }
+
+        .parties td {
+            width: 50%;
+            vertical-align: top;
+            border: 1px solid #DDE3F0;
+            border-radius: 5px;
+            padding: 10px 12px;
+        }
+
+        .party-label {
+            font-size: 8.5px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: #8A93A8;
+            text-transform: uppercase;
+            padding-bottom: 4px;
+        }
+
+        .party-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #2B3245;
+            padding-bottom: 2px;
+        }
+
+        .party-row {
+            font-size: 10px;
+            color: #4A5265;
+        }
+
+        .party-row .key {
+            color: #8A93A8;
+            display: inline-block;
+            min-width: 82px;
+        }
+
+        /* ---------- line items ---------- */
+        .section-title {
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #5478C0;
+            margin: 18px 0 6px 0;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            background-color: #3B4A6B;
+            color: #FFFFFF;
+            font-weight: bold;
+            padding: 7px 8px;
+            text-align: center;
+            font-size: 9px;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+        }
+
+        .table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #E7EBF4;
+            text-align: center;
+            font-size: 10px;
+        }
+
+        .table tr:nth-child(even) td {
+            background-color: #FAFBFE;
+        }
+
+        .table td.text {
+            text-align: left;
+        }
+
+        .table td.amount,
+        .table th.amount {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .table .totals-row td {
+            font-weight: bold;
+            background-color: #EEF2FB;
+            border-top: 1.5px solid #5478C0;
+            border-bottom: 1.5px solid #5478C0;
+        }
+
+        .expense-table th {
+            background-color: #6F63B0;
+        }
+
+        .muted-row td {
+            color: #8A93A8;
+            font-style: italic;
+            text-align: center;
+            padding: 14px;
+        }
+
+        /* ---------- settlement ---------- */
+        .settlement {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 18px;
+        }
+
+        .settlement > tbody > tr > td {
+            vertical-align: top;
+        }
+
+        .terms {
+            width: 58%;
+            padding-right: 18px;
+            font-size: 9px;
+            color: #6B7385;
+        }
+
+        .terms .terms-title {
+            font-size: 9px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #8A93A8;
+            padding-bottom: 4px;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #DDE3F0;
+        }
+
+        .summary-table td {
+            padding: 7px 12px;
+            font-size: 10.5px;
+            border-bottom: 1px solid #E7EBF4;
+        }
+
+        .summary-table td.amount {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .summary-table tr.summary-sub td {
+            background-color: #FAFBFE;
+            font-weight: bold;
+        }
+
+        .summary-table tr.summary-net td {
+            font-size: 13px;
+            font-weight: bold;
+            color: #FFFFFF;
+            background-color: #3B5599;
+            border-bottom: none;
+        }
+
+        /* ---------- sign-off ---------- */
+        .signoff {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 42px;
+        }
+
+        .signoff td {
+            width: 33%;
+            padding: 0 10px;
+            font-size: 9px;
+            color: #6B7385;
+            text-align: center;
+        }
+
+        .signoff .rule {
+            border-top: 1px solid #9AA3B8;
+            padding-top: 5px;
+        }
+
+        .footer {
+            margin-top: 26px;
+            text-align: center;
+            font-size: 8.5px;
+            color: #9AA3B8;
+            border-top: 1px solid #E7EBF4;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <table class="masthead">
+        <tr>
+            <td>
+                {% if logo_path %}
+                <img src="{{ logo_path }}" class="logo" alt="ON TRACK">
+                {% else %}
+                <div class="company-name">ON TRACK</div>
+                {% endif %}
+            </td>
+            <td class="company-block">
+                <div class="company-name">ON TRACK PRIVATE LIMITED</div>
+                <div class="company-line">Fleet &amp; Asset Tracking Solutions</div>
+                <div class="company-line">C-25 Office #1, 3rd Floor Old Sunset &middot; UAN 0311-1345070</div>
+                <div class="company-line">info@on-tracking.com &middot; www.on-tracking.com</div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="identity">
+        <tr>
+            <td class="doc-type">FUEL REIMBURSEMENT INVOICE</td>
+            <td class="doc-number">
+                Invoice No. <strong>{{ invoice.invoice_number }}</strong><br>
+                Issued {{ invoice.created_at.strftime('%d %B %Y') if invoice.created_at else '-' }}
+            </td>
+        </tr>
+    </table>
+
+    <table class="parties">
+        <tr>
+            <td>
+                <div class="party-label">Claimed by</div>
+                <div class="party-name">{{ tech.name if tech else 'N/A' }}</div>
+                <div class="party-row"><span class="key">Contact</span>{{ tech.contact if tech and tech.contact else
+                    'N/A' }}</div>
+                <div class="party-row"><span class="key">Bike Reg.</span>{{ bike.bike_registration if bike and
+                    bike.bike_registration else 'N/A' }}</div>
+            </td>
+            <td>
+                <div class="party-label">Claim period</div>
+                <div class="party-name">
+                    {{ invoice.start_date.strftime('%d %b %Y') if invoice.start_date else '-' }}
+                    &ndash;
+                    {{ invoice.end_date.strftime('%d %b %Y') if invoice.end_date else '-' }}
+                </div>
+                <div class="party-row"><span class="key">Efficiency</span>{{ efficiency }} km per litre</div>
+                <div class="party-row"><span class="key">Trips</span>{{ items|length }} recorded</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="section-title">Journeys</div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th width="4%">#</th>
+                <th width="11%">Date</th>
+                <th width="20%">From</th>
+                <th width="20%">To</th>
+                <th class="amount" width="10%">Dist (km)</th>
+                <th class="amount" width="10%">Fuel (L)</th>
+                <th class="amount" width="13%">Fuel Cost</th>
+                <th class="amount" width="12%">Customer Fuel</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.num }}</td>
+                <td>{{ item.date }}</td>
+                <td class="text">{{ item.from_loc }}</td>
+                <td class="text">{{ item.to_loc }}</td>
+                <td class="amount">{{ item.dist|money }}</td>
+                <td class="amount">{{ item.fuel|money }}</td>
+                <td class="amount">{{ item.cost|money_pkr }}</td>
+                <td class="amount">{{ item.customer|money_pkr }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="muted-row">No journeys recorded in this period</td>
+            </tr>
+            {% endfor %}
+            <tr class="totals-row">
+                <td colspan="4" style="text-align: right;">TOTALS</td>
+                <td class="amount">{{ total_dist|money }}</td>
+                <td class="amount">{{ total_fuel|money }}</td>
+                <td class="amount">{{ total_cost|money_pkr }}</td>
+                <td class="amount">{{ total_customer|money_pkr }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    {# Non-fuel items claimed alongside the travel. Itemised rather than
+       rolled into the net figure, so the claim can be checked line by line. #}
+    {% if expenses %}
+    <div class="section-title">Additional Expenses</div>
+    <table class="table expense-table">
+        <thead>
+            <tr>
+                <th width="22%">Item</th>
+                <th width="48%">Description</th>
+                <th width="15%">Added By</th>
+                <th class="amount" width="15%">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for expense in expenses %}
+            <tr>
+                <td class="text">{{ expense.label }}</td>
+                <td class="text">{{ expense.description or '-' }}</td>
+                <td>{{ expense.added_by_name or '-' }}</td>
+                <td class="amount">{{ expense.amount|money_pkr }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="totals-row">
+                <td colspan="3" style="text-align: right;">TOTAL ADDITIONAL EXPENSES</td>
+                <td class="amount">{{ total_expenses|money_pkr }}</td>
+            </tr>
+        </tbody>
+    </table>
+    {% endif %}
+
+    <table class="settlement">
+        <tr>
+            <td class="terms">
+                <div class="terms-title">How this figure is reached</div>
+                Fuel cost is distance divided by the recorded efficiency of
+                {{ efficiency }} km per litre, at the petrol rate in force on each journey's date.
+                Fuel already paid for by a customer is deducted in full.
+                Additional expenses are reimbursed at the amount claimed and are itemised above.
+            </td>
+            <td>
+                <table class="summary-table">
+                    <tr>
+                        <td>Total fuel cost</td>
+                        <td class="amount">{{ total_cost|money_pkr }}</td>
+                    </tr>
+                    <tr>
+                        <td>Less customer-paid fuel</td>
+                        <td class="amount">&minus; {{ total_customer|money_pkr }}</td>
+                    </tr>
+                    <tr class="summary-sub">
+                        <td>Fuel payable</td>
+                        <td class="amount">{{ fuel_payable|money_pkr }}</td>
+                    </tr>
+                    <tr>
+                        <td>Additional expenses</td>
+                        <td class="amount">{{ total_expenses|money_pkr }}</td>
+                    </tr>
+                    <tr class="summary-net">
+                        <td>NET PAYABLE</td>
+                        <td class="amount">{{ net_payable|money_pkr }}</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <table class="signoff">
+        <tr>
+            <td>
+                <div class="rule">Claimed by &mdash; {{ tech.name if tech else 'Technician' }}</div>
+            </td>
+            <td>
+                <div class="rule">Verified by</div>
+            </td>
+            <td>
+                <div class="rule">Approved for payment</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="footer">
+        Computer-generated document &middot; Invoice {{ invoice.invoice_number }}<br>
+        CRAFTED WITH PRECISION BY ORIGINS SOLUTIONS FOR ON TRACK PRIVATE LIMITED &copy; 2026
+    </div>
+</body>
+
+</html>

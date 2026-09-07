@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="phone-call" style="color: var(--odoo-primary);"></i> Installation Recovery Follow-up Report
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Complete call &amp; WhatsApp history for device recovery charges (Power Issue / Device Damage / Device Missing)
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{{ url_for('payment.installation_recovery_dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left" class="lucide-icon"></i> Installation Recovery
+            </a>
+            <a href="{{ url_for('payment.installation_recovery_followup_export_excel', status=status_filter, search=search) }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="file-down" class="lucide-icon"></i> Excel
+            </a>
+            <a href="{{ url_for('payment.installation_recovery_followup_export_pdf', status=status_filter, search=search) }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="file-text" class="lucide-icon"></i> PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary by Charge Status -->
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(4, 1fr);">
+        {% for s, count in status_summary.items() %}
+        <a href="{{ url_for('payment.installation_recovery_followup_report', status=s, search=search) }}"
+           class="o_dashboard_card" style="text-decoration: none; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 5px solid {% if s == 'RECOVERED' %}#10b981{% elif s == 'CONTACTED' %}#3b82f6{% elif s == 'LOST' %}#94a3b8{% else %}#eab308{% endif %}; {% if status_filter == s %}box-shadow: 0 0 0 2px var(--odoo-primary);{% endif %}">
+            <div class="o_card_header" style="color: #334155;">{{ s.title() }}</div>
+            <div class="o_card_value" style="color: #0f172a;">{{ count }}</div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Filters -->
+    <form method="GET" style="display: flex; gap: 10px; align-items: center; margin: 20px 0; flex-wrap: wrap;">
+        <input type="text" name="search" value="{{ search }}" placeholder="Search by Reg. No. or Customer..." class="o_field_widget" style="max-width: 280px;">
+        <select name="status" class="o_field_widget" style="max-width: 220px;">
+            <option value="">-- All Charge Statuses --</option>
+            {% for s in status_summary.keys() %}
+            <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s.title() }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="pastel-btn-primary">
+            <i data-lucide="filter" class="lucide-icon"></i> Apply Filters
+        </button>
+        {% if search or status_filter %}
+        <a href="{{ url_for('payment.installation_recovery_followup_report') }}" class="pastel-btn-secondary">Clear</a>
+        {% endif %}
+    </form>
+
+    <!-- Follow-up Call Log -->
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Date/Time</th>
+                    <th>Registration</th>
+                    <th>Customer</th>
+                    <th>Reason</th>
+                    <th>Amount Due</th>
+                    <th>Contact Person / No.</th>
+                    <th>Channel</th>
+                    <th>Summary</th>
+                    <th>Charge Status</th>
+                    <th>Recorded By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in followups %}
+                {% set c = f.charge %}
+                <tr class="o_list_record">
+                    <td>{{ f.conversation_date.strftime('%d/%m/%Y %H:%M') if f.conversation_date else 'N/A' }}</td>
+                    <td><strong>{{ c.redo_activity.registration_no if c and c.redo_activity else 'N/A' }}</strong></td>
+                    <td>{{ c.redo_activity.customer_name if c and c.redo_activity else 'N/A' }}</td>
+                    <td><span class="o_badge o_badge_info">{{ c.reason if c else 'N/A' }}</span></td>
+                    <td>PKR {{ (c.amount|int) if c else 0 }}</td>
+                    <td>{{ f.contact_person or 'N/A' }}<br><small style="color: var(--odoo-text-light);">{{ f.contact_number or 'N/A' }}</small></td>
+                    <td>
+                        <span class="o_badge o_badge_info">{{ 'WhatsApp' if f.conversation_type == 'WHATSAPP' else 'Phone Call' }}</span>
+                    </td>
+                    <td style="max-width: 320px; white-space: normal;">{{ f.summary or 'N/A' }}</td>
+                    <td>
+                        <span class="o_badge {% if c and c.status == 'RECOVERED' %}o_badge_success{% elif c and c.status == 'CONTACTED' %}o_badge_info{% elif c and c.status == 'LOST' %}o_badge_secondary{% else %}o_badge_warning{% endif %}">
+                            {{ c.status if c else 'N/A' }}
+                        </span>
+                    </td>
+                    <td>{{ f.recorded_by_name or 'N/A' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        No follow-up calls recorded{% if status_filter %} for "{{ status_filter }}"{% endif %}.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title" style="display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="fuel" style="color: var(--odoo-primary);"></i>
+        Petrol Rates
+    </h1>
+    
+    <!-- Current Rate Display -->
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(3, 1fr);">
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.fuel_rate_history') }}" class="o_dashboard_card o_card_primary" style="text-decoration: none;">
+            <div class="o_card_header"><i data-lucide="dollar-sign"></i> Current Rate</div>
+            <div class="o_card_value" style="font-size: 28px;">PKR {{ "%.2f"|format(current_rate|float) }}</div>
+            <div class="o_card_unit">Per Liter</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_primary">
+            <div class="o_card_header"><i data-lucide="dollar-sign"></i> Current Rate</div>
+            <div class="o_card_value" style="font-size: 28px;">PKR {{ "%.2f"|format(current_rate|float) }}</div>
+            <div class="o_card_unit">Per Liter</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.fuel_rate_history') }}" class="o_dashboard_card o_card_info" style="text-decoration: none;">
+            <div class="o_card_header"><i data-lucide="calendar"></i> Last Updated</div>
+            <div class="o_card_value" style="font-size: 20px;">
+                {% if rates %}
+                    {{ rates[0].effective_date.strftime('%d/%m/%Y') }}
+                {% else %}
+                    N/A
+                {% endif %}
+            </div>
+            <div class="o_card_unit">Date</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_info">
+            <div class="o_card_header"><i data-lucide="calendar"></i> Last Updated</div>
+            <div class="o_card_value" style="font-size: 20px;">
+                {% if rates %}
+                    {{ rates[0].effective_date.strftime('%d/%m/%Y') }}
+                {% else %}
+                    N/A
+                {% endif %}
+            </div>
+            <div class="o_card_unit">Date</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.fuel_rate_history') }}" class="o_dashboard_card o_card_teal" style="text-decoration: none;">
+            <div class="o_card_header"><i data-lucide="refresh-cw"></i> Auto-Update</div>
+            <div class="o_card_value" style="font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="clock" style="color: var(--odoo-success-dark);"></i>
+                Active
+            </div>
+            <div class="o_card_unit">Daily at 00:00</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_teal">
+            <div class="o_card_header"><i data-lucide="refresh-cw"></i> Auto-Update</div>
+            <div class="o_card_value" style="font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="clock" style="color: var(--odoo-success-dark);"></i>
+                Active
+            </div>
+            <div class="o_card_unit">Daily at 00:00</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="o_search_bar" style="justify-content: center; gap: 12px; flex-wrap: wrap; margin: 20px 0;">
+        <!-- Fetch from PSO Button -->
+        <form method="POST" action="{{ url_for('admin.manual_fuel_rate_update') }}" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+            <button type="submit" class="pastel-btn-primary" onclick="return confirm('Fetch latest rate from PSO website?')">
+                <i data-lucide="refresh-cw"></i> Fetch from PSO
+            </button>
+        </form>
+        
+        <!-- Background Update Button -->
+        <form method="POST" action="{{ url_for('admin.force_fuel_update') }}" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+            <button type="submit" class="pastel-btn-secondary" onclick="return confirm('Start background update?')">
+                <i data-lucide="clock"></i> Update in Background
+            </button>
+        </form>
+        
+        <!-- Rate History -->
+        <a href="{{ url_for('admin.fuel_rate_history') }}" class="pastel-btn-secondary">
+            <i data-lucide="history"></i> Rate History
+        </a>
+        
+        <!-- Add Manual Rate -->
+        <a href="{{ url_for('admin.petrol_rate_add') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="Add Manual Rate" aria-label="Add Manual Rate">
+            <i data-lucide="plus"></i>
+        </a>
+    </div>
+    
+    <!-- Info Box -->
+    <div style="margin: 20px 0; padding: 15px; background: var(--odoo-primary-soft); border-radius: 10px; border-left: 4px solid var(--odoo-primary);">
+        <p style="margin: 0; color: var(--odoo-text); display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="info" style="color: var(--odoo-primary);"></i>
+            <strong>Auto-update schedule:</strong> Fuel rates are automatically fetched from 
+            <a href="https://psopk.com/en/fuels/fuel-prices" target="_blank" style="color: var(--odoo-primary);">
+                PSO Official Website
+            </a> 
+            every day at <strong>00:00 (midnight)</strong> and checked every 6 hours.
+            Using <strong>PREMIER EURO 5</strong> rate.
+        </p>
+    </div>
+    
+    <!-- Rate List -->
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Rate (PKR/Liter)</th>
+                    <th>Effective Date</th>
+                    <th>Source</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rate in rates %}
+                <tr class="o_list_record">
+                    <td><strong>PKR {{ "%.2f"|format(rate.rate_per_liter|float) }}</strong></td>
+                    <td>{{ rate.effective_date.strftime('%d/%m/%Y') if rate.effective_date else '-' }}</td>
+                    <td>
+                        <span class="o_badge {% if rate.effective_date == rates[0].effective_date %}o_badge_success{% else %}o_badge_secondary{% endif %}">
+                            {% if rate.effective_date == rates[0].effective_date %}
+                                Current
+                            {% else %}
+                                Historical
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <!-- Delete Button -->
+                        <form method="POST" action="{{ url_for('admin.petrol_rate_delete', id=rate.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this rate?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                            <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete Rate" aria-label="Delete Rate">
+                                <i data-lucide="trash-2"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--odoo-text-light);">
+                        <i data-lucide="inbox"></i> No petrol rates found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

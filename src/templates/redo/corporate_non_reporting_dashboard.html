@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .lucide-icon { width: 16px; height: 16px; display: inline-block; vertical-align: text-bottom; }
+
+    .o_pagination_wrapper { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; padding: 14px 20px; background: #ffffff; border-radius: 10px; border: 1px solid #DDE3F0; box-shadow: 0 1px 4px rgba(107,141,214,0.04); flex-wrap: wrap; gap: 15px; }
+    .o_page_btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; font-size: 13px; font-weight: 600; border-radius: 6px; border: 1px solid #DDE3F0; background: #F5F7FC; color: #4A5568; text-decoration: none; transition: all 0.15s ease; }
+    .o_page_btn:hover { background: #EEF2FB; color: #3B3F51; border-color: #8EA8E5; text-decoration: none; }
+    .o_page_btn.active { background: #6B8DD6; color: #ffffff !important; border-color: #6B8DD6; box-shadow: 0 2px 4px rgba(107, 141, 214, 0.25); }
+    .o_page_btn.disabled { opacity: 0.45; cursor: not-allowed; background: #F5F7FC; color: #9AA8C0; pointer-events: none; }
+    .o_page_ellipsis { padding: 4px 6px; color: #9AA8C0; font-weight: 600; }
+</style>
+
+<div class="o_container_fluid">
+    <!-- Header Controls -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="building-2" class="lucide-icon" style="width: 26px; height: 26px; color: var(--odoo-primary);"></i>
+                Corporate Non-Reporting Dashboard
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Offline GPS monitoring scoped to corporate fleet clients (5+ vehicles)
+                {% if roster_synced_at %}&mdash; roster last synced {{ roster_synced_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <a href="{{ url_for('redo.non_reporting_dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left" class="lucide-icon"></i> All Vehicles
+            </a>
+            <a href="{{ url_for('redo.corporate_non_reporting_dashboard', sync=1) }}" class="pastel-btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="refresh-cw" class="lucide-icon"></i> Sync Fleet Roster
+            </a>
+        </div>
+    </div>
+
+    <!-- Overview Metric Cards -->
+    <div class="o_dashboard_cards">
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('redo.corporate_non_reporting_dashboard') }}" class="o_dashboard_card" style="text-decoration: none; background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left: 4px solid #3b82f6;">
+            <div class="o_card_header" style="color: #1e40af; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="activity" class="lucide-icon"></i> Corporate Not Reporting (24h+)
+            </div>
+            <div class="o_card_value" style="color: #1e3a8a;">{{ total }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left: 4px solid #3b82f6;">
+            <div class="o_card_header" style="color: #1e40af; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="activity" class="lucide-icon"></i> Corporate Not Reporting (24h+)
+            </div>
+            <div class="o_card_value" style="color: #1e3a8a;">{{ total }}</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="#corporate-vehicles-list" class="o_dashboard_card" style="text-decoration: none; background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-left: 4px solid #8b5cf6;">
+            <div class="o_card_header" style="color: #6b21a8; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="building-2" class="lucide-icon"></i> Corporate Clients Monitored
+            </div>
+            <div class="o_card_value" style="color: #581c87;">{{ total_corporate_clients }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card" style="background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-left: 4px solid #8b5cf6;">
+            <div class="o_card_header" style="color: #6b21a8; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="building-2" class="lucide-icon"></i> Corporate Clients Monitored
+            </div>
+            <div class="o_card_value" style="color: #581c87;">{{ total_corporate_clients }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Duration Kanban Buckets Cards -->
+    <h4 style="margin: 25px 0 15px; color: var(--odoo-primary-dark); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="columns" class="lucide-icon" style="color: var(--odoo-primary);"></i> Inactivity Duration Kanban Buckets
+    </h4>
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 25px;">
+        <a href="{{ url_for('redo.corporate_non_reporting_dashboard', bucket='24 Hours') }}" style="text-decoration: none;">
+            <div class="o_dashboard_card" style="background: linear-gradient(135deg, #e0f2fe, #bae6fd); border-left: 4px solid #0284c7; color: #0369a1;">
+                <div class="o_card_header" style="color: #0369a1; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="timer" class="lucide-icon"></i> 24 Hours
+                </div>
+                <div class="o_card_value" style="color: #0284c7;">{{ bucket_counts.get('24 Hours', 0) }}</div>
+                <div class="o_card_unit" style="color: #0369a1;">Exactly 24 Hours Offline</div>
+            </div>
+        </a>
+        <a href="{{ url_for('redo.corporate_non_reporting_dashboard', bucket='25-36 Hours') }}" style="text-decoration: none;">
+            <div class="o_dashboard_card" style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-left: 4px solid #d97706; color: #92400e;">
+                <div class="o_card_header" style="color: #92400e; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="alert-circle" class="lucide-icon"></i> 25&ndash;36 Hours
+                </div>
+                <div class="o_card_value" style="color: #d97706;">{{ bucket_counts.get('25-36 Hours', 0) }}</div>
+                <div class="o_card_unit" style="color: #92400e;">Moderate Signal Delay</div>
+            </div>
+        </a>
+        <a href="{{ url_for('redo.corporate_non_reporting_dashboard', bucket='37-48 Hours') }}" style="text-decoration: none;">
+            <div class="o_dashboard_card" style="background: linear-gradient(135deg, #ffedd5, #fed7aa); border-left: 4px solid #ea580c; color: #9a3412;">
+                <div class="o_card_header" style="color: #9a3412; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="alert-octagon" class="lucide-icon"></i> 37&ndash;48 Hours
+                </div>
+                <div class="o_card_value" style="color: #ea580c;">{{ bucket_counts.get('37-48 Hours', 0) }}</div>
+                <div class="o_card_unit" style="color: #9a3412;">High Offline Risk</div>
+            </div>
+        </a>
+        <a href="{{ url_for('redo.corporate_non_reporting_dashboard', bucket='48+ Hours') }}" style="text-decoration: none;">
+            <div class="o_dashboard_card" style="background: linear-gradient(135deg, #fce7f3, #fbcfe8); border-left: 4px solid #db2777; color: #9d174d;">
+                <div class="o_card_header" style="color: #9d174d; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="shield-alert" class="lucide-icon"></i> 48+ Hours
+                </div>
+                <div class="o_card_value" style="color: #db2777;">{{ bucket_counts.get('48+ Hours', 0) }}</div>
+                <div class="o_card_unit" style="color: #9d174d;">Critical REDO Service SLA</div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div class="o_search_bar" style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 250px; position: relative;">
+            <input type="text" class="o_search_input" placeholder="Search by reg #, customer, IMEI..." id="searchInput" value="{{ search }}" style="width: 100%; padding-left: 35px;">
+            <i data-lucide="search" class="lucide-icon" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
+        </div>
+
+        <select class="o_filter_select" id="statusFilter" style="min-width: 160px;">
+            <option value="">All Statuses</option>
+            <option value="PENDING" {% if status == 'PENDING' %}selected{% endif %}>Pending</option>
+            <option value="IN_PROGRESS" {% if status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+            <option value="COMPLETED" {% if status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+        </select>
+
+        {% if bucket %}
+        <a href="{{ url_for('redo.corporate_non_reporting_dashboard') }}" class="pastel-btn-secondary" style="padding: 6px 14px; font-size: 13px;">
+            <i data-lucide="x" class="lucide-icon"></i> Clear Bucket Filter ({{ bucket }})
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Corporate Not Reporting Vehicles, Clubbed by Client -->
+    <div id="corporate-vehicles-list">
+    {% for group in client_groups %}
+    <details open style="margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #ffffff;">
+        <summary style="cursor: pointer; list-style: none; padding: 14px 18px; background: linear-gradient(135deg, #faf5ff, #f3e8ff); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+            <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #581c87; font-size: 15px;">
+                <i data-lucide="building-2" class="lucide-icon"></i> {{ group.client_name }}
+                {% if group.fleet_size %}<span style="font-weight: 500; color: #7e22ce; font-size: 12px;">(fleet of {{ group.fleet_size }})</span>{% endif %}
+            </span>
+            <span class="o_badge o_badge_danger" style="font-weight: 700;">{{ group.vehicles|length }} Not Reporting</span>
+        </summary>
+        <table class="o_list_table" style="margin: 0;">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Registration</th>
+                    <th>IMEI &amp; SIM Info</th>
+                    <th>Last Tracker Signal (PKT Time)</th>
+                    <th>Inactivity Bucket</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vehicle in group.vehicles %}
+                <tr class="o_list_record">
+                    <td><strong style="color: #1e293b; font-size: 14px;">{{ vehicle.registration_no }}</strong></td>
+                    <td>
+                        <div style="display:flex; flex-direction:column; gap:2px;">
+                            <small style="color:#475569;"><i data-lucide="cpu" class="lucide-icon"></i> {{ vehicle.imei_no or 'N/A' }}</small>
+                            <small style="color:#64748b;"><i data-lucide="smartphone" class="lucide-icon"></i> {{ vehicle.sim_no or 'N/A' }}</small>
+                        </div>
+                    </td>
+                    <td>
+                        {% set latest_sig = vehicle.get_latest_signal_time() %}
+                        {% if latest_sig %}
+                            <div style="display:flex; flex-direction:column; gap:2px;">
+                                <span style="font-size:13px; font-weight:600; color:#1e293b;">
+                                    <i data-lucide="clock" class="lucide-icon"></i> {{ latest_sig.strftime('%d/%m/%Y %I:%M %p') }} PKT
+                                </span>
+                                <small style="color:#dc2626; font-weight:700;">{{ vehicle.get_hours_non_reporting() }} hrs offline</small>
+                            </div>
+                        {% else %}
+                            <span class="o_badge o_badge_danger" style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="wifi-off" class="lucide-icon"></i> No Signal</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="o_badge o_badge_warning" style="font-weight:600;">{{ vehicle.get_aging_bucket() }}</span></td>
+                    <td>
+                        <span class="o_badge {% if vehicle.status == 'COMPLETED' %}o_badge_success{% elif vehicle.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                            {{ vehicle.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('redo.non_reporting_detail', vehicle_id=vehicle.id) }}" class="pastel-btn-secondary" style="padding: 4px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                            <i data-lucide="folder-open" class="lucide-icon"></i> Detail &amp; Follow-up
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
+    {% else %}
+    <div class="o_list_view" style="text-align: center; color: var(--odoo-text-light); padding: 35px 20px;">
+        <i data-lucide="check-circle" style="width: 36px; height: 36px; display: block; margin: 0 auto 10px auto; color: #16a34a;"></i>
+        No corporate-fleet vehicles are currently non-reporting (24h+ offline).
+    </div>
+    {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    <div class="o_pagination_wrapper">
+        <div style="font-size: 13px; color: #64748b; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="layers" class="lucide-icon" style="color: #94a3b8;"></i>
+            Showing <strong>{{ ((page - 1) * per_page) + 1 if client_groups else 0 }}</strong> - <strong>{{ [page * per_page, total_clients_matched]|min }}</strong> of <strong>{{ total_clients_matched }}</strong> Corporate Clients &mdash; <strong>{{ total }}</strong> Not-Reporting Vehicles Total
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 6px;">
+            {% if page > 1 %}
+            <a href="{{ url_for('redo.corporate_non_reporting_dashboard', page=page-1, search=search, status=status, bucket=bucket) }}" class="o_page_btn">
+                <i data-lucide="chevron-left" class="lucide-icon"></i> Previous
+            </a>
+            {% else %}
+            <span class="o_page_btn disabled"><i data-lucide="chevron-left" class="lucide-icon"></i> Previous</span>
+            {% endif %}
+
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <span class="o_page_btn active">{{ p }}</span>
+                {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                <a href="{{ url_for('redo.corporate_non_reporting_dashboard', page=p, search=search, status=status, bucket=bucket) }}" class="o_page_btn">{{ p }}</a>
+                {% elif p == 4 or p == total_pages - 3 %}
+                <span class="o_page_ellipsis">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a href="{{ url_for('redo.corporate_non_reporting_dashboard', page=page+1, search=search, status=status, bucket=bucket) }}" class="o_page_btn">
+                Next <i data-lucide="chevron-right" class="lucide-icon"></i>
+            </a>
+            {% else %}
+            <span class="o_page_btn disabled">Next <i data-lucide="chevron-right" class="lucide-icon"></i></span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    var searchElem = document.getElementById('searchInput');
+    var statusElem = document.getElementById('statusFilter');
+
+    if (searchElem) {
+        searchElem.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                window.location.href = "{{ url_for('redo.corporate_non_reporting_dashboard') }}?search=" + encodeURIComponent(this.value) + "&status=" + statusElem.value;
+            }
+        });
+    }
+
+    if (statusElem) {
+        statusElem.addEventListener('change', function() {
+            window.location.href = "{{ url_for('redo.corporate_non_reporting_dashboard') }}?search=" + encodeURIComponent(searchElem ? searchElem.value : '') + "&status=" + this.value;
+        });
+    }
+</script>
+{% endblock %}

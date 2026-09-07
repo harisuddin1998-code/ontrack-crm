@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid" style="max-width: 900px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="ticket" class="lucide-icon" style="color: var(--odoo-primary);"></i> Ticket {{ complaint.ticket_no }}
+            </h1>
+            <span class="o_badge {% if complaint.status == 'RESOLVED' %}o_badge_success{% elif complaint.status == 'IN_PROGRESS' %}o_badge_info{% elif complaint.status == 'CLOSED' %}o_badge_secondary{% else %}o_badge_warning{% endif %}" style="margin-top: 6px; display: inline-block;">
+                {{ complaint.status }}
+            </span>
+        </div>
+        <a href="{{ url_for('complaint.dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="arrow-left" class="lucide-icon"></i> Back to Complaints
+        </a>
+    </div>
+
+    <!-- Ticket Summary Card -->
+    <div class="o_form_view">
+        <div class="o_form_body">
+            <div class="o_form_group" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                <div class="o_field_group">
+                    <label class="o_field_label">Customer Name</label>
+                    <div style="font-size: 15px; font-weight: 700; color: var(--odoo-text);">{{ complaint.customer_name }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Contact Number</label>
+                    <div style="font-size: 15px; font-weight: 700; color: var(--odoo-primary-dark);">{{ complaint.customer_contact }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Vehicle Reg No</label>
+                    <div style="font-size: 15px; font-weight: 700; color: var(--odoo-text);">{{ complaint.reg_no or 'N/A' }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Severity</label>
+                    <div>
+                        <span class="o_badge {% if complaint.severity == 'CRITICAL' %}o_badge_danger{% elif complaint.severity == 'HIGH' %}o_badge_warning{% else %}o_badge_info{% endif %}">
+                            {{ complaint.severity }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid var(--odoo-border); padding-top: 15px; margin-bottom: 20px;">
+                <label class="o_field_label">Complaint Description</label>
+                <div style="background: var(--odoo-bg); padding: 15px; border-radius: 10px; font-size: 14px; color: var(--odoo-text); margin-top: 5px; border: 1px solid var(--odoo-border);">
+                    {{ complaint.description }}
+                </div>
+            </div>
+
+            <!-- Assignment Control -->
+            <div style="background: var(--odoo-lavender); border: 1px solid var(--odoo-lilac-dark); border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+                <h5 style="margin: 0 0 10px 0; color: var(--odoo-lavender-dark); font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="user-cog" class="lucide-icon"></i> Assigned Support Technician
+                </h5>
+                <form method="POST" action="{{ url_for('complaint.assign', complaint_id=complaint.id) }}" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <select name="technician_id" class="o_field_widget" style="max-width: 300px;">
+                        <option value="">-- Select Technician --</option>
+                        {# Technician Management is the only roster - a name in
+                           this list is a technician who exists there and is
+                           still active. #}
+                        {% for tech in technicians %}
+                        <option value="{{ tech.id }}" {% if complaint.technician_id == tech.id %}selected{% endif %}>{{ tech.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="pastel-btn-secondary">Re-Assign</button>
+                </form>
+            </div>
+
+            <!-- Ticket Resolution / Status Form -->
+            <div style="background: var(--odoo-success); border: 1px solid var(--odoo-success-border); border-radius: 10px; padding: 20px;">
+                <h5 style="margin: 0 0 15px 0; color: var(--odoo-success-dark); font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="check-circle" class="lucide-icon"></i> Ticket Resolution &amp; Status Notes
+                </h5>
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+
+                    <div style="margin-bottom: 15px;">
+                        <label class="o_field_label">Update Status</label>
+                        {{ form.status(class="o_field_widget", style="max-width: 250px;") }}
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <label class="o_field_label">Resolution / Technical Action Notes</label>
+                        {{ form.resolution_notes(class="o_field_widget", rows="4", placeholder="Enter technical resolution steps taken or update notes...") }}
+                    </div>
+
+                    <div class="o_action_bar" style="justify-content: flex-end;">
+                        <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="Update Ticket" aria-label="Update Ticket">
+                            <i data-lucide="save"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

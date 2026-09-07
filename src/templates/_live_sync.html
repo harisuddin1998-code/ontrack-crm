@@ -1,0 +1,193 @@
+{# Live synchronisation control - the CRM's only dashboard polling loop.
+
+   Every dashboard that refreshes itself includes this one partial instead of
+   carrying its own timer, so there is a single interval, a single fetch, and
+   a single place the period is set. Two dashboards each running their own
+   countdown is how they end up disagreeing about the same number.
+
+   Caller sets the endpoint, and optionally the period:
+
+       {% set sync_endpoint = url_for('admin.api_dashboard_stats') %}
+       {% include '_live_sync.html' %}
+
+   The endpoint returns {"success": true, "values": {"<key>": "<display>"}}.
+   Values are formatted server-side, by the same helper that rendered the
+   page, and written into whatever carries `data-sync="<key>"`. Nothing is
+   computed or formatted here - a refreshed figure is byte-identical to the
+   one Jinja put on the page.
+
+   Manual sync elsewhere in the CRM (the Sync buttons that pull from SJ_MIS)
+   is a different thing entirely and is untouched by this. #}
+
+<div class="o_dashboard_live o_icons_only" id="o_live_sync" data-sync-endpoint="{{ sync_endpoint }}"
+    data-sync-seconds="{{ sync_seconds|default(120, true) }}">
+    <span class="o_badge o_badge_success" id="sync-state" style="gap: 6px; padding: 6px 12px; font-size: 11px;">
+        <i data-lucide="refresh-cw" id="sync-icon"></i> Live
+    </span>
+    <small class="o_sync_meta">
+        <span id="sync-stamp">not refreshed yet</span>
+        &middot; next in <strong id="refresh-counter">{{ sync_seconds|default(120, true) }}</strong>s
+    </small>
+    <button type="button" onclick="refreshDashboardStats()" class="o_button o_button_secondary" title="Refresh now"
+        aria-label="Refresh now">
+        <i data-lucide="rotate-cw"></i><span class="o_btn_label">Refresh Now</span>
+    </button>
+</div>
+
+<script>
+    (function () {
+        var root = document.getElementById('o_live_sync');
+        if (!root || root.dataset.syncReady === '1') return;
+        root.dataset.syncReady = '1';
+
+        var endpoint = root.dataset.syncEndpoint;
+        var period = parseInt(root.dataset.syncSeconds, 10) || 120;
+        var counterEl = document.getElementById('refresh-counter');
+        var syncIcon = document.getElementById('sync-icon');
+        var stampEl = document.getElementById('sync-stamp');
+        var stateEl = document.getElementById('sync-state');
+        var countdown = period;
+        var inFlight = false;
+
+        function apply(values) {
+            var changed = 0;
+            Object.keys(values).forEach(function (key) {
+                var nodes = document.querySelectorAll('[data-sync="' + key + '"]');
+                for (var i = 0; i < nodes.length; i++) {
+                    if (nodes[i].textContent.trim() === String(values[key]).trim()) continue;
+                    nodes[i].textContent = values[key];
+                    // Flash the figures that actually moved. A refresh where
+                    // nothing changes and nothing is said looks identical to
+                    // a refresh that never happened - which is why this read
+                    // as a dead control.
+                    changed++;
+                    (function (node) {
+                        node.classList.remove('o_sync_changed');
+                        void node.offsetWidth;   // restart the animation
+                        node.classList.add('o_sync_changed');
+                    })(nodes[i]);
+                }
+            });
+            // Values just changed length - refit them so a longer amount
+            // doesn't wrap and unbalance the row.
+            if (window.fitStatValues) window.fitStatValues();
+            return changed;
+        }
+
+        function stamp(text, ok) {
+            if (stampEl) stampEl.textContent = text;
+            if (!stateEl) return;
+            stateEl.classList.toggle('o_badge_success', ok);
+            stateEl.classList.toggle('o_badge_danger', !ok);
+            stateEl.lastChild.textContent = ok ? ' Live' : ' Offline';
+        }
+
+        window.refreshDashboardStats = function () {
+            // A slow response must not stack up behind the next tick, or a
+            // hung endpoint turns into a queue of parallel requests.
+            if (inFlight) return;
+            inFlight = true;
+            if (syncIcon) syncIcon.classList.add('is_syncing');
+
+            fetch(endpoint, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (res) {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then(function (data) {
+                    if (!data || !data.success || !data.values) {
+                        throw new Error(data && data.error ? data.error : 'bad response');
+                    }
+                    var changed = apply(data.values);
+                    var at = data.timestamp || new Date().toLocaleTimeString();
+                    stamp(changed
+                        ? 'updated ' + at + ' (' + changed + ' changed)'
+                        : 'checked ' + at + ', no change', true);
+                })
+                .catch(function (err) {
+                    console.error('Dashboard sync error:', err);
+                    // Say so on the page. A failure that only reaches the
+                    // console is a failure the person reading the numbers
+                    // never learns about.
+                    stamp('last attempt failed - retrying', false);
+                })
+                .finally(function () {
+                    inFlight = false;
+                    // Count from the response, not from the request: a fetch
+                    // that took 4s shouldn't leave only 116s until the next.
+                    countdown = period;
+                    if (counterEl) counterEl.textContent = countdown;
+                    setTimeout(function () {
+                        if (syncIcon) syncIcon.classList.remove('is_syncing');
+                    }, 1000);
+                });
+        };
+
+        setInterval(function () {
+            // Polling a backgrounded tab is load for nobody's benefit; the
+            // countdown picks straight back up when the tab is looked at.
+            if (document.hidden) return;
+            countdown--;
+            if (counterEl) counterEl.textContent = Math.max(countdown, 0);
+            if (countdown <= 0) window.refreshDashboardStats();
+        }, 1000);
+    })();
+</script>
+
+<style>
+    .o_dashboard_live {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--odoo-white);
+        padding: 6px 12px;
+        border-radius: 20px;
+        border: 1px solid var(--odoo-border);
+        box-shadow: var(--card-shadow);
+    }
+
+    .o_sync_meta {
+        color: var(--odoo-text-muted);
+        font-size: 10.5px;
+        white-space: nowrap;
+    }
+
+    #sync-icon.is_syncing {
+        animation: o_spin 1s linear infinite;
+    }
+
+    /* A figure that just moved briefly lights up, so a refresh is visible
+       even when you were not watching that particular card. */
+    .o_sync_changed {
+        animation: o_sync_flash 1.4s ease-out;
+        border-radius: 4px;
+    }
+
+    @keyframes o_sync_flash {
+        0% {
+            background: var(--odoo-warning-soft, #FDF3D6);
+        }
+
+        100% {
+            background: transparent;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .o_sync_changed {
+            animation: none;
+        }
+    }
+
+    @keyframes o_spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        #sync-icon.is_syncing {
+            animation: none;
+        }
+    }
+</style>

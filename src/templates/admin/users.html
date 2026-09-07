@@ -1,0 +1,62 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title" style="display: flex; align-items: center; gap: 8px;"><i data-lucide="users" style="color: var(--odoo-primary);"></i> User Management</h1>
+    <div class="o_search_bar" style="margin-bottom: 20px;">
+        <a href="{{ url_for('admin.user_new') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="Add User" aria-label="Add User"><i data-lucide="plus"></i></a>
+    </div>
+    <div class="o_list_view">
+        <table class="o_list_table" style="table-layout: fixed; width: 100%;">
+            <colgroup>
+                <col style="width: 9%;">
+                <col style="width: 10%;">
+                <col style="width: 13%;">
+                <col style="width: 20%;">
+                <col style="width: 28%;">
+                <col style="width: 8%;">
+                <col style="width: 12%;">
+            </colgroup>
+            <thead class="o_list_header">
+                <tr>
+                    <th>User Code</th>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th style="text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr class="o_list_record">
+                    <td><span class="o_badge o_badge_secondary">{{ user.user_code or '-' }}</span></td>
+                    <td><strong>{{ user.username }}</strong></td>
+                    <td style="text-transform: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ user.name or '-' }}</td>
+                    <td style="text-transform: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ user.email }}">{{ user.email }}</td>
+                    <td style="padding-top: 8px; padding-bottom: 8px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+                            <span class="o_badge o_badge_primary">{{ user.get_role_display() }}</span>
+                            {% for extra in user.get_additional_roles() %}
+                            <span class="o_badge o_badge_secondary" title="Additional view">{{ user.get_role_display(extra) }}</span>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td><span class="o_badge {% if user.is_active %}o_badge_success{% else %}o_badge_danger{% endif %}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
+                    <td style="text-align: center;">
+                        <div class="o_action_btns" style="justify-content: center;">
+                            <a href="{{ url_for('admin.user_edit', user_id=user.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit User" aria-label="Edit User"><i data-lucide="pencil"></i></a>
+                            <form method="POST" action="{{ url_for('admin.user_delete', user_id=user.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete User" aria-label="Delete User"><i data-lucide="trash-2"></i></button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

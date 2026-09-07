@@ -1,0 +1,230 @@
+{# Administrator KPI card deck.
+
+   Included by BOTH admin/dashboard.html and admin/executive_dashboard.html so
+   the two pages cannot drift apart in either their numbers or their colours -
+   the Executive dashboard is required to be a replica of the Administrator's.
+   The numbers come from one backend helper (`_compute_admin_dashboard_stats`)
+   and are formatted by one more (`dashboard_sync_values`); this file is the
+   matching front end.
+
+   Caller passes `sync` - the map of already-formatted display values:
+       {% raw %}{% include 'admin/_dashboard_kpi_cards.html' %}{% endraw %}
+
+   Every live figure is printed as `{% raw %}{{ sync.<key> }}{% endraw %}` inside an element tagged
+   `data-sync="<key>"`. That tag is what the 120-second refresh writes into
+   (see _live_sync.html), so the card is refreshed by the same map that
+   rendered it and no figure is ever formatted twice.
+
+   Cards are grouped by the work they belong to, each group under its own
+   heading. Every card is a link, and every link lands on the records that
+   card counted - a number you cannot open is a dead end, and one that opens
+   the wrong list is worse. Colours are the pastel `o_stat_*` tones from
+   odoo_style.css - never a saturated gradient.
+
+   Every figure here is counted over the timeframe chip at the top of the
+   board, the same window the period sections below use, so the whole page
+   answers one question about one period. That is also why each link carries
+   `since=` - the card's number and the list it opens are the same set. #}
+
+{# Sales and purchase orders are one group: a sales order IS a purchase order
+   here, so splitting them into two headings had the same records counted
+   under two names in two places on the same screen.
+
+   The three status cards split the orders the first card counts, so they
+   add up to it rather than repeating it. #}
+<div class="o_section_header">
+    <h3><i data-lucide="file-plus"></i> Sales &amp; Purchase Orders ({{ period_label }})</h3>
+    <span class="o_period_chip_static">{{ period_range_label }}</span>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('admin.pos_list', since=period_start_str) }}" class="o_stat_card o_stat_sky">
+        <span class="o_stat_label"><i data-lucide="file-spreadsheet"></i> Sales Orders</span>
+        <div class="o_stat_value" data-sync="sales_orders">{{ sync.sales_orders }}</div>
+        <div class="o_stat_hint"><span data-sync="sales_value">{{ sync.sales_value }}</span> order value</div>
+    </a>
+
+    <a href="{{ url_for('admin.pos_list', since=period_start_str, status='COMPLETED') }}"
+        class="o_stat_card o_stat_green">
+        <span class="o_stat_label"><i data-lucide="check-circle"></i> Completed</span>
+        <div class="o_stat_value" data-sync="period_completed">{{ sync.period_completed }}</div>
+        <div class="o_stat_hint">orders completed</div>
+    </a>
+
+    <a href="{{ url_for('admin.pos_list', since=period_start_str, status='IN_PROGRESS') }}"
+        class="o_stat_card o_stat_blue">
+        <span class="o_stat_label"><i data-lucide="play"></i> In Progress</span>
+        <div class="o_stat_value" data-sync="period_in_progress">{{ sync.period_in_progress }}</div>
+        <div class="o_stat_hint">orders being installed</div>
+    </a>
+
+    <a href="{{ url_for('admin.pos_list', since=period_start_str, status='PENDING') }}"
+        class="o_stat_card o_stat_amber">
+        <span class="o_stat_label"><i data-lucide="clock"></i> Pending</span>
+        <div class="o_stat_value" data-sync="period_pending">{{ sync.period_pending }}</div>
+        <div class="o_stat_hint">orders pending</div>
+    </a>
+</div>
+
+{# The briefing is the last step of the order the sales team raised, so it
+   reads directly under them. #}
+<div class="o_section_header">
+    <h3><i data-lucide="shield-check"></i> Security Briefings ({{ period_label }})</h3>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('security.dashboard', tab='completed') }}" class="o_stat_card o_stat_mint">
+        <span class="o_stat_label"><i data-lucide="shield-check"></i> Briefings Done</span>
+        <div class="o_stat_value" data-sync="briefings_done">{{ sync.briefings_done }}</div>
+        <div class="o_stat_hint">of <span data-sync="briefings_total">{{ sync.briefings_total }}</span> briefings</div>
+    </a>
+
+    <a href="{{ url_for('security.dashboard', tab='pending') }}" class="o_stat_card o_stat_lilac">
+        <span class="o_stat_label"><i data-lucide="shield-alert"></i> Briefings Pending</span>
+        <div class="o_stat_value" data-sync="briefings_pending">{{ sync.briefings_pending }}</div>
+        <div class="o_stat_hint">still to be briefed</div>
+    </a>
+</div>
+
+<div class="o_section_header">
+    <h3><i data-lucide="rotate-cw"></i> REDOs ({{ period_label }})</h3>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('redo.dashboard', since=period_start_str, show_completed='true') }}"
+        class="o_stat_card o_stat_teal">
+        <span class="o_stat_label"><i data-lucide="rotate-cw"></i> REDOs Raised</span>
+        <div class="o_stat_value" data-sync="redos_total">{{ sync.redos_total }}</div>
+        <div class="o_stat_hint">reworks raised in period</div>
+    </a>
+
+    <a href="{{ url_for('redo.dashboard', status='COMPLETED', since=period_start_str, show_completed='true') }}"
+        class="o_stat_card o_stat_green">
+        <span class="o_stat_label"><i data-lucide="check-check"></i> REDOs Done</span>
+        <div class="o_stat_value" data-sync="redos_done">{{ sync.redos_done }}</div>
+        <div class="o_stat_hint">reworks completed</div>
+    </a>
+
+    {# Open work only, which is the wallboard's own default view - hence no
+       `show_completed` here where the two cards above carry it. #}
+    <a href="{{ url_for('redo.dashboard', since=period_start_str) }}" class="o_stat_card o_stat_peach">
+        <span class="o_stat_label"><i data-lucide="loader"></i> REDOs Open</span>
+        <div class="o_stat_value" data-sync="redos_open">{{ sync.redos_open }}</div>
+        <div class="o_stat_hint">still outstanding</div>
+    </a>
+</div>
+
+{# The three device faults are one group because they are one decision: which
+   of them is backing up, and which queue to send someone to first. #}
+<div class="o_section_header">
+    <h3><i data-lucide="cpu"></i> Device / Power Issues ({{ period_label }})</h3>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('payment.installation_recovery_dashboard', reason='Power Issue') }}"
+        class="o_stat_card o_stat_amber">
+        <span class="o_stat_label"><i data-lucide="zap"></i> Power Issue</span>
+        <div class="o_stat_value" data-sync="power_issue">{{ sync.power_issue }}</div>
+        <div class="o_stat_hint"><span data-sync="power_issue_amount">{{ sync.power_issue_amount }}</span> outstanding
+        </div>
+    </a>
+
+    <a href="{{ url_for('payment.installation_recovery_dashboard', reason='Device Damage') }}"
+        class="o_stat_card o_stat_rose">
+        <span class="o_stat_label"><i data-lucide="wrench"></i> Device Damage</span>
+        <div class="o_stat_value" data-sync="device_damage">{{ sync.device_damage }}</div>
+        <div class="o_stat_hint"><span data-sync="device_damage_amount">{{ sync.device_damage_amount }}</span>
+            outstanding</div>
+    </a>
+
+    <a href="{{ url_for('payment.installation_recovery_dashboard', reason='Device Missing') }}"
+        class="o_stat_card o_stat_purple">
+        <span class="o_stat_label"><i data-lucide="help-circle"></i> Device Missing</span>
+        <div class="o_stat_value" data-sync="device_missing">{{ sync.device_missing }}</div>
+        <div class="o_stat_hint"><span data-sync="device_missing_amount">{{ sync.device_missing_amount }}</span>
+            outstanding</div>
+    </a>
+</div>
+
+<div class="o_section_header">
+    <h3><i data-lucide="banknote"></i> Revenue &amp; Recovery ({{ period_label }})</h3>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('payment.dashboard') }}" class="o_stat_card o_stat_peach">
+        <span class="o_stat_label"><i data-lucide="credit-card"></i> Outstanding Recovery</span>
+        <div class="o_stat_value" data-sync="recovery_pending_amount">{{ sync.recovery_pending_amount }}</div>
+        <div class="o_stat_hint"><span data-sync="recovery_pending_count">{{ sync.recovery_pending_count }}</span>
+            unpaid invoices raised</div>
+    </a>
+
+    <a href="{{ url_for('payment.installation_recovery_dashboard') }}" class="o_stat_card o_stat_mint">
+        <span class="o_stat_label"><i data-lucide="hard-drive"></i> Installation Recovery Income</span>
+        <div class="o_stat_value" data-sync="installation_income">{{ sync.installation_income }}</div>
+        <div class="o_stat_hint">received from installations</div>
+    </a>
+
+    <a href="{{ url_for('annual_recovery.dashboard') }}" class="o_stat_card o_stat_green">
+        <span class="o_stat_label"><i data-lucide="dollar-sign"></i> Annual Monitoring Income</span>
+        <div class="o_stat_value" data-sync="amc_income">{{ sync.amc_income }}</div>
+        <div class="o_stat_hint">AMC received in period</div>
+    </a>
+</div>
+
+{# AMC invoicing.
+
+   Its own group rather than another card under Revenue & Recovery: that
+   group answers "what came in", and these answer "what was asked for". An
+   invoice raised is not income, and putting the two under one heading is how
+   a billed figure gets read as a collected one.
+
+   Discount is the reason this group exists. An officer settling a fleet
+   below its outstanding balance is ordinary practice, but until the invoice
+   ledger recorded it the concession left no trace - PKR 9,000 owed and
+   PKR 7,000 billed simply looked like a PKR 7,000 invoice. #}
+<div class="o_section_header">
+    <h3><i data-lucide="receipt"></i> AMC Invoicing ({{ period_label }})</h3>
+    <span class="o_period_chip_static">{{ period_range_label }}</span>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('admin.mis_report_view', slug='amc-invoices', **{'from': period_start_str, 'to': period_end_str}) }}"
+        class="o_stat_card o_stat_sky">
+        <span class="o_stat_label"><i data-lucide="file-text"></i> Invoices Generated</span>
+        <div class="o_stat_value" data-sync="amc_invoices_count">{{ sync.amc_invoices_count }}</div>
+        <div class="o_stat_hint">AMC invoices raised in period</div>
+    </a>
+
+    <a href="{{ url_for('admin.mis_report_view', slug='amc-invoices', **{'from': period_start_str, 'to': period_end_str}) }}"
+        class="o_stat_card o_stat_green">
+        <span class="o_stat_label"><i data-lucide="banknote"></i> Invoiced Amount</span>
+        <div class="o_stat_value" data-sync="amc_invoiced_amount">{{ sync.amc_invoiced_amount }}</div>
+        <div class="o_stat_hint">billed to customers</div>
+    </a>
+
+    <a href="{{ url_for('admin.mis_report_view', slug='amc-invoices', **{'from': period_start_str, 'to': period_end_str}) }}"
+        class="o_stat_card o_stat_peach">
+        <span class="o_stat_label"><i data-lucide="credit-card"></i> Outstanding Billed Against</span>
+        <div class="o_stat_value" data-sync="amc_invoice_outstanding">{{ sync.amc_invoice_outstanding }}</div>
+        <div class="o_stat_hint">balance on those invoices</div>
+    </a>
+
+    <a href="{{ url_for('admin.mis_report_view', slug='amc-invoices', **{'from': period_start_str, 'to': period_end_str}) }}"
+        class="o_stat_card o_stat_amber">
+        <span class="o_stat_label"><i data-lucide="percent"></i> Discount Given</span>
+        <div class="o_stat_value" data-sync="amc_discount_amount">{{ sync.amc_discount_amount }}</div>
+        <div class="o_stat_hint">across <span data-sync="amc_discounted_count">{{ sync.amc_discounted_count }}</span>
+            discounted invoices</div>
+    </a>
+</div>
+
+<div class="o_section_header">
+    <h3><i data-lucide="satellite-dish"></i> Fleet &amp; Stock ({{ period_label }})</h3>
+</div>
+<div class="o_kanban_stats o_kanban_group">
+    <a href="{{ url_for('redo.non_reporting_dashboard') }}" class="o_stat_card o_stat_rose">
+        <span class="o_stat_label"><i data-lucide="wifi-off"></i> Non-Reporting Raised</span>
+        <div class="o_stat_value" data-sync="non_reporting">{{ sync.non_reporting }}</div>
+        <div class="o_stat_hint">vehicles flagged offline in period</div>
+    </a>
+
+    <a href="{{ url_for('inventory.stock', short='1') }}" class="o_stat_card o_stat_amber">
+        <span class="o_stat_label"><i data-lucide="boxes"></i> Stock Shortages</span>
+        <div class="o_stat_value" data-sync="stock_short">{{ sync.stock_short }}</div>
+        <div class="o_stat_hint">accessory items short in period</div>
+    </a>
+</div>

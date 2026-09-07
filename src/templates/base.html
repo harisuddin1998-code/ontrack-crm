@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ontrack Insight - Integrated Fleet &amp; Operations Management Platform</title>
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/odoo_style.css') }}">
+
+    <style>
+        /* The brand lockup itself lives in odoo_style.css next to
+           .o_navbar_brand - it needs that selector's specificity to win. */
+
+        /* The mark fills the navbar panel rather than floating inside it -
+           56px against a 68px bar leaves an even 6px above and below. No
+           radius or plate: the PNG is transparent and already trimmed. */
+        .o_logo {
+            height: 56px;
+            width: auto;
+            max-width: 200px;
+            object-fit: contain;
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .o_logo {
+                height: 44px;
+            }
+        }
+
+        .o_sidebar_open {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--odoo-text);
+            cursor: pointer;
+            padding: 8px;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .o_sidebar_open {
+                display: block;
+            }
+        }
+
+        /* Retract the navigation to give a wide board the whole window.
+           Both the sidebar and the content column are sized off
+           --sidebar-width, so collapsing is a single variable change here
+           rather than a rule per element. */
+        .o_sidebar_collapse {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--odoo-border);
+            border-radius: 8px;
+            background: var(--odoo-white);
+            color: var(--odoo-text-light);
+            cursor: pointer;
+            flex: 0 0 auto;
+            transition: var(--transition);
+        }
+
+        .o_sidebar_collapse:hover {
+            color: var(--odoo-primary-dark);
+            border-color: var(--odoo-primary-light);
+            background: var(--odoo-primary-soft);
+        }
+
+        .o_sidebar_collapse i {
+            width: 17px;
+            height: 17px;
+        }
+
+        @media (min-width: 769px) {
+            .o_sidebar_collapse {
+                display: inline-flex;
+            }
+
+            .o_sidebar,
+            .o_main_content {
+                transition: transform 0.22s ease, margin-left 0.22s ease,
+                    max-width 0.22s ease;
+            }
+
+            body.o_nav_collapsed {
+                --sidebar-width: 0px;
+            }
+
+            body.o_nav_collapsed .o_sidebar {
+                transform: translateX(-100%);
+            }
+        }
+
+        .o_user_role {
+            font-size: 10px;
+            color: var(--odoo-text-light);
+            background: var(--odoo-primary-soft);
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 4px;
+        }
+
+        /* ===== COLLAPSIBLE SIDEBAR GROUPS ===== */
+        .o_menu_group {
+            margin-bottom: 4px;
+        }
+
+        .o_menu_group_header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+            user-select: none;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--odoo-text-muted);
+        }
+
+        .o_menu_group_header:hover {
+            background: var(--odoo-primary-soft);
+        }
+
+        .o_menu_group_header .o_group_icon {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .o_menu_group_header .o_group_icon svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .o_menu_group_header .o_group_toggle {
+            transition: transform 0.3s ease;
+            font-size: 10px;
+            color: var(--odoo-text-light);
+        }
+
+        .o_menu_group_header .o_group_toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .o_menu_group_body {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            max-height: 2000px;
+            opacity: 1;
+        }
+
+        .o_menu_group_body.collapsed {
+            max-height: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .o_menu_group_body .o_menu_item {
+            padding-left: 28px;
+            font-size: 13px;
+        }
+
+        .o_menu_group_body .o_menu_item svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        /* ===== NOTIFICATION BELL ===== */
+        .o_notif_wrap {
+            position: relative;
+        }
+
+        .o_notif_bell {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--odoo-border);
+            background: var(--odoo-white);
+            color: var(--odoo-text-light);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .o_notif_bell:hover {
+            background: var(--odoo-primary-soft);
+            color: var(--odoo-primary-dark);
+        }
+
+        .o_notif_count {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 9px;
+            background: var(--odoo-danger-dark);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 18px;
+            text-align: center;
+        }
+
+        .o_notif_panel {
+            position: absolute;
+            top: 46px;
+            right: 0;
+            width: 340px;
+            max-width: calc(100vw - 32px);
+            max-height: 60vh;
+            overflow-y: auto;
+            background: var(--odoo-white);
+            border: 1px solid var(--odoo-border);
+            border-radius: 12px;
+            box-shadow: var(--card-shadow-hover);
+            z-index: 1100;
+        }
+
+        .o_notif_head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--odoo-border);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--odoo-text);
+        }
+
+        .o_notif_clear {
+            border: none;
+            background: none;
+            color: var(--odoo-primary-dark);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .o_notif_item {
+            display: block;
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--odoo-primary-soft);
+            text-decoration: none;
+            color: inherit;
+            transition: var(--transition);
+        }
+
+        .o_notif_item:hover {
+            background: var(--odoo-primary-soft);
+        }
+
+        .o_notif_title {
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--odoo-text);
+        }
+
+        .o_notif_body {
+            font-size: 11.5px;
+            color: var(--odoo-text-light);
+            margin-top: 2px;
+        }
+
+        .o_notif_time {
+            font-size: 10px;
+            color: var(--odoo-text-muted);
+            margin-top: 3px;
+        }
+
+        .o_notif_empty {
+            padding: 22px 14px;
+            text-align: center;
+            font-size: 11.5px;
+            color: var(--odoo-text-muted);
+        }
+
+        /* Sidebar scroll */
+        .o_sidebar {
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .o_sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .o_sidebar::-webkit-scrollbar-thumb {
+            background: var(--odoo-border);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="o_navbar">
+        <div class="o_navbar_brand">
+            <button class="o_sidebar_open" onclick="document.querySelector('.o_sidebar').classList.toggle('open')">
+                <i data-lucide="menu"></i>
+            </button>
+
+            {% if current_user.is_authenticated %}
+            <button type="button" class="o_sidebar_collapse" id="navCollapse"
+                title="Hide navigation" aria-label="Hide navigation" aria-expanded="true">
+                <i data-lucide="panel-left-close"></i>
+            </button>
+            {% endif %}
+
+            <a href="{{ url_for('index') }}"
+                style="text-decoration: none; display: flex; align-items: center; gap: 12px;">
+                {# Trimmed, transparent mark - the JPEG carried a baked-in
+                   white square that showed as a plate against the navbar. #}
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="ON TRACK" class="o_logo"
+                    onerror="this.style.display='none'">
+                <span class="o_brand_lockup">
+                    <span class="o_logo_text">On<span>track</span> <em>Insight</em></span>
+                    <span class="o_brand_descriptor">Integrated Fleet &amp; Operations Management Platform</span>
+                    <span class="o_brand_tagline">Ontrack | Ontime | Online</span>
+                </span>
+            </a>
+        </div>
+        <div class="o_navbar_menu">
+            {% if current_user.is_authenticated %}
+            <div class="o_notif_wrap">
+                <button type="button" class="o_notif_bell" id="notifBell" title="Notifications"
+                    aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+                    <i data-lucide="bell"></i>
+                    <span class="o_notif_count" id="notifCount" hidden>0</span>
+                </button>
+                <div class="o_notif_panel" id="notifPanel" hidden>
+                    <div class="o_notif_head">
+                        <span>Notifications</span>
+                        <button type="button" class="o_notif_clear" id="notifClear">Mark all read</button>
+                    </div>
+                    <div class="o_notif_list" id="notifList">
+                        <p class="o_notif_empty">You're all caught up.</p>
+                    </div>
+                </div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="o_button o_button_secondary o_button_sm">
+                <i data-lucide="log-out"></i> Logout
+            </a>
+            <div class="o_user_menu">
+                <i data-lucide="user"></i>
+                <span>{{ current_user.name or current_user.username }}</span>
+                <span class="o_user_role">{{ current_user.get_role_display() }}</span>
+            </div>
+            {% else %}
+            <a href="{{ url_for('auth.login') }}" class="o_button o_button_sm">
+                <i data-lucide="log-in"></i> Login
+            </a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    {% if current_user.is_authenticated %}
+    <aside class="o_sidebar">
+        <div class="o_menu_section">
+            <div class="o_menu_title">Navigation</div>
+
+            {# The groups below, and the links inside each one, are kept in
+               alphabetical order. The sidebar is the index to the whole CRM:
+               someone who knows the name of the module they want should be
+               able to find it without reading every entry, and a fixed order
+               is the only arrangement that stays predictable as modules are
+               added. New groups/links go in their alphabetical place, not at
+               the end. #}
+
+            {# ===== AMC / ANNUAL RECOVERY GROUP =====
+               AMC/Annual Recovery officers (recovery_officer role) are a separate job
+               function from Installation Recovery below - they cannot see each other's
+               nav groups or work. #}
+            {% if current_user.has_role('recovery_officer') or current_user.is_admin() or current_user.is_manager() or current_user.is_executive() %}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="dollar-sign"></i>
+                        <span>AMC / Annual Recovery</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('live_amc.database_recoveries') }}"
+                        class="o_menu_item {% if request.endpoint and request.endpoint.startswith('live_amc.database') %}active{% endif %}">
+                        <i data-lucide="database"></i> AMC Recoveries (DB)
+                    </a>
+                    <a href="{{ url_for('annual_recovery.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint and request.endpoint.startswith('annual_recovery.') %}active{% endif %}">
+                        <i data-lucide="dollar-sign"></i> Annual Recovery
+                    </a>
+                    <a href="{{ url_for('live_amc.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'live_amc.dashboard' or request.endpoint == 'live_amc.update_assignment' %}active{% endif %}">
+                        <i data-lucide="calendar-clock"></i> Live AMC
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ===== CUSTOMER SUPPORT GROUP ===== -->
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="headphones"></i>
+                        <span>Customer Support</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    {% if current_user.is_admin() or current_user.is_complaint_manager() or current_user.is_executive() %}
+                    <a href="{{ url_for('complaint.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint and request.endpoint.startswith('complaint.') and request.endpoint not in ['complaint.new', 'complaint.my_complaints'] %}active{% endif %}">
+                        <i data-lucide="headphones"></i> Complaints & Tickets
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('complaint.new') }}"
+                        class="o_menu_item {% if request.endpoint == 'complaint.new' %}active{% endif %}">
+                        <i data-lucide="plus-circle"></i> Log New Complaint
+                    </a>
+                    {# Anyone who can raise a ticket can follow it. Their own
+                       only - the scoping is in the query behind this page. #}
+                    <a href="{{ url_for('complaint.my_complaints') }}"
+                        class="o_menu_item {% if request.endpoint == 'complaint.my_complaints' %}active{% endif %}">
+                        <i data-lucide="clipboard-list"></i> My Complaints
+                    </a>
+                </div>
+            </div>
+
+            {% if current_user.is_admin() or current_user.is_executive() %}
+            <!-- ===== DASHBOARDS GROUP ===== -->
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>Dashboards</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('admin.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+                        <i data-lucide="monitor"></i> Administration
+                    </a>
+                    <a href="{{ url_for('admin.executive_dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.executive_dashboard' %}active{% endif %}">
+                        <i data-lucide="activity"></i> Executive OPS
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ===== INSTALLATION GROUP ===== -->
+            {% if (current_user.is_installation() and not current_user.is_admin()) or current_user.is_executive() %}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="hammer"></i>
+                        <span>Installation</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('installation.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'installation.dashboard' %}active{% endif %}">
+                        <i data-lucide="hammer"></i> Dashboard
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {# ===== INSTALLATION RECOVERY GROUP =====
+               Installation Recovery officers (payment_recovery role) handle device
+               replacement charges + the PO installation ledger. This is a distinct
+               job function from AMC/Annual Recovery above - an Installation Recovery
+               officer must never see the AMC group, and vice versa.
+
+               Device Recovery can be granted on its own (device_recovery role /
+               Additional Views), so the group shows for it too - but only the
+               Device Recovery item inside it. The PO payment ledger stays with
+               the Installation Recovery officer.
+
+               The group sits at "Installation Recovery" in the alphabetical
+               order. Titled "Device Recovery" it still lands in order for the
+               user who sees it that way: the only other groups open to them
+               are Customer Support and Suggestions. #}
+            {% set can_see_payment_ledger = current_user.is_payment_recovery() or current_user.is_admin() or current_user.is_manager() or current_user.is_executive() %}
+            {% set can_see_device_recovery = can_see_payment_ledger or current_user.is_device_recovery() %}
+            {% if can_see_device_recovery %}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="credit-card"></i>
+                        <span>{% if can_see_payment_ledger %}Installation Recovery{% else %}Device Recovery{% endif %}</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('payment.installation_recovery_dashboard') }}"
+                        class="o_menu_item {% if request.endpoint and request.endpoint.startswith('payment.installation_recovery') %}active{% endif %}">
+                        <i data-lucide="hard-drive"></i> Device Recovery (Power/Damage/Missing)
+                    </a>
+                    {% if can_see_payment_ledger %}
+                    <a href="{{ url_for('payment.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'payment.dashboard' %}active{% endif %}">
+                        <i data-lucide="credit-card"></i> Installation Payment Recovery
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ===== INVENTORY GROUP ===== -->
+            {% if current_user.is_admin() or current_user.is_manager() or current_user.is_inventory() or current_user.is_executive() %}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="package"></i>
+                        <span>Inventory</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('inventory.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'inventory.dashboard' %}active{% endif %}">
+                        <i data-lucide="package"></i> Device Stock
+                    </a>
+                    {% if current_user.is_admin() or current_user.is_manager() or current_user.is_inventory() or current_user.is_executive() %}
+                    <a href="{{ url_for('inventory.stock') }}"
+                        class="o_menu_item {% if request.endpoint == 'inventory.stock' %}active{% endif %}">
+                        <i data-lucide="boxes"></i> Stock &amp; Accessories
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ===== REDO GROUP ===== -->
+            {% if current_user.is_redo_technician() or current_user.is_admin() or current_user.is_executive() %}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="rotate-cw"></i>
+                        <span>REDO</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('redo.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint in ('redo.dashboard', 'redo.root') %}active{% endif %}">
+                        <i data-lucide="rotate-cw"></i> Activities
+                    </a>
+                    <a href="{{ url_for('redo.followups') }}"
+                        class="o_menu_item {% if request.endpoint == 'redo.followups' %}active{% endif %}">
+                        <i data-lucide="phone-forwarded"></i> Follow-up Module
+                    </a>
+                    <a href="{{ url_for('redo.non_reporting_dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'redo.non_reporting_dashboard' %}active{% endif %}">
+                        <i data-lucide="alert-triangle"></i> Non-Reporting
+                    </a>
+                    <a href="{{ url_for('redo.corporate_non_reporting_dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'redo.corporate_non_reporting_dashboard' %}active{% endif %}">
+                        <i data-lucide="building-2"></i> Corporate Non-Reporting
+                    </a>
+                    <a href="{{ url_for('redo.redo_records') }}"
+                        class="o_menu_item {% if request.endpoint == 'redo.redo_records' %}active{% endif %}">
+                        <i data-lucide="history"></i> Historical Activity
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ===== REMOVAL GROUP (Dashboard + Retained + Transfers) ===== -->
+            {% if current_user.is_removal() or current_user.is_admin() or current_user.is_executive() %}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="trash-2"></i>
+                        <span>Removal</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('removal.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'removal.dashboard' %}active{% endif %}">
+                        <i data-lucide="trash-2"></i> Dashboard
+                    </a>
+                    <a href="{{ url_for('removal.retained_dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'removal.retained_dashboard' %}active{% endif %}">
+                        <i data-lucide="package"></i> Retained
+                    </a>
+                    <a href="{{ url_for('removal.transfer_dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'removal.transfer_dashboard' %}active{% endif %}">
+                        <i data-lucide="repeat"></i> Transfers
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if current_user.is_admin() or current_user.is_executive() %}
+            <!-- ===== REPORTS GROUP ===== -->
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="file-bar-chart"></i>
+                        <span>Reports</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                {# Device Change, REDO Follow-Up and Technician Performance used to
+                   sit here as three separate entries. They are catalogue reports
+                   now, so MIS Reports is the one way in - along with every other
+                   report, under one period control and one export. Fuel Invoices
+                   stays because it is a working screen, not a report: invoices are
+                   generated and marked paid on it. #}
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('admin.fuel_invoices') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.fuel_invoices' %}active{% endif %}">
+                        <i data-lucide="receipt"></i> Fuel Invoices
+                    </a>
+                    <a href="{{ url_for('admin.mis_reports') }}"
+                        class="o_menu_item {% if request.endpoint and request.endpoint.startswith('admin.mis_report') %}active{% endif %}">
+                        <i data-lucide="file-text"></i> MIS Reports
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ===== SALES GROUP (non-admin) ===== -->
+            {% if current_user.is_sales() and not current_user.is_admin() and not current_user.is_executive() %}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="trending-up"></i>
+                        <span>Sales</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('sales.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'sales.dashboard' %}active{% endif %}">
+                        <i data-lucide="trending-up"></i> Dashboard
+                    </a>
+                    <a href="{{ url_for('sales.new_po') }}"
+                        class="o_menu_item {% if request.endpoint == 'sales.new_po' %}active{% endif %}">
+                        <i data-lucide="plus-circle"></i> New PO
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if current_user.is_admin() or current_user.is_executive() %}
+            <!-- ===== SALES MENU GROUP ===== -->
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="shopping-cart"></i>
+                        <span>Sales Menu</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('admin.installation_queue') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.installation_queue' %}active{% endif %}">
+                        <i data-lucide="list-checks"></i> Installation Queue
+                    </a>
+                    <a href="{{ url_for('admin.pos_list') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.pos_list' %}active{% endif %}">
+                        <i data-lucide="file-spreadsheet"></i> Purchase Orders
+                    </a>
+                    <a href="{{ url_for('sales.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'sales.dashboard' %}active{% endif %}">
+                        <i data-lucide="trending-up"></i> Sales Dashboard
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ===== SECURITY GROUP ===== -->
+            {% if current_user.is_security() or current_user.is_admin() or current_user.is_executive() %}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="shield"></i>
+                        <span>Security</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('security.dashboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'security.dashboard' %}active{% endif %}">
+                        <i data-lucide="shield"></i> Briefings
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if current_user.is_admin() %}
+            <!-- ===== SETTINGS GROUP ===== -->
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="settings"></i>
+                        <span>Settings</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('admin.cities') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.cities' %}active{% endif %}">
+                        <i data-lucide="map-pin"></i> Cities
+                    </a>
+                    <a href="{{ url_for('admin.colors') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.colors' %}active{% endif %}">
+                        <i data-lucide="palette"></i> Colors
+                    </a>
+                    <a href="{{ url_for('admin.devices') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.devices' %}active{% endif %}">
+                        <i data-lucide="cpu"></i> Devices
+                    </a>
+                    <a href="{{ url_for('admin.petrol_rates') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.petrol_rates' %}active{% endif %}">
+                        <i data-lucide="fuel"></i> Petrol Rates
+                    </a>
+                    <a href="{{ url_for('admin.report_recipients') }}"
+                        class="o_menu_item {% if request.endpoint and request.endpoint.startswith('admin.report_recipient') %}active{% endif %}">
+                        <i data-lucide="mail"></i> Report Recipients
+                    </a>
+                    <a href="{{ url_for('admin.technicians') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.technicians' %}active{% endif %}">
+                        <i data-lucide="wrench"></i> Technicians
+                    </a>
+                    <a href="{{ url_for('admin.users') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.users' %}active{% endif %}">
+                        <i data-lucide="users"></i> Users
+                    </a>
+                    <a href="{{ url_for('admin.makes') }}"
+                        class="o_menu_item {% if request.endpoint in ['admin.makes', 'admin.models', 'admin.make_add', 'admin.make_edit', 'admin.model_add', 'admin.model_edit'] %}active{% endif %}">
+                        <i data-lucide="car"></i> Manufacturers &amp; Brands
+                    </a>
+                    <a href="{{ url_for('admin.years') }}"
+                        class="o_menu_item {% if request.endpoint == 'admin.years' %}active{% endif %}">
+                        <i data-lucide="calendar"></i> Years
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {# ===== SUGGESTIONS GROUP =====
+               Ungated on purpose: anyone using the CRM can tell the
+               Administrator what is wrong with it, whatever their role. Only
+               the wallboard - where those reports are triaged and answered -
+               is restricted. #}
+            <div class="o_menu_group">
+                <div class="o_menu_group_header" onclick="toggleGroup(this)">
+                    <span class="o_group_icon">
+                        <i data-lucide="lightbulb"></i>
+                        <span>Suggestions</span>
+                    </span>
+                    <span class="o_group_toggle"><i data-lucide="chevron-down"></i></span>
+                </div>
+                <div class="o_menu_group_body">
+                    <a href="{{ url_for('suggestions.my_suggestions') }}"
+                        class="o_menu_item {% if request.endpoint in ['suggestions.my_suggestions', 'suggestions.detail'] %}active{% endif %}">
+                        <i data-lucide="clipboard-list"></i> My Suggestions
+                    </a>
+                    <a href="{{ url_for('suggestions.new') }}"
+                        class="o_menu_item {% if request.endpoint == 'suggestions.new' %}active{% endif %}">
+                        <i data-lucide="plus-circle"></i> New Suggestion
+                    </a>
+                    {% if current_user.can_manage_suggestions() %}
+                    <a href="{{ url_for('suggestions.wallboard') }}"
+                        class="o_menu_item {% if request.endpoint == 'suggestions.wallboard' %}active{% endif %}">
+                        <i data-lucide="layout-dashboard"></i> Suggestions Wallboard
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </aside>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="o_main_content">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="o_alert o_alert_{{ category }}">
+            <i
+                data-lucide="{% if category == 'success' %}check-circle{% elif category == 'danger' %}alert-circle{% elif category == 'warning' %}alert-triangle{% else %}info{% endif %}"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Page Content -->
+        {% block content %}
+        {% endblock %}
+
+        <!-- Footer -->
+        <footer class="o_footer">
+            CRAFTED WITH PRECISION BY ORIGINS SOLUTIONS FOR ON TRACK PRIVATE LIMITED &copy; 2026
+        </footer>
+    </main>
+
+    <script>
+        /* ===== ACCOUNTING FORMAT =====
+           Mirror of src/utils/formatting.py for tables rendered client-side
+           from JSON. Both must agree - a column half-formatted by Jinja and
+           half by JS is worse than neither. */
+        window.fmtMoney = function (value, dashIfEmpty) {
+            if (value === null || value === undefined || value === '') {
+                return dashIfEmpty === false ? '0.00' : '-';
+            }
+            var n = typeof value === 'number' ? value : parseFloat(String(value).replace(/,/g, ''));
+            if (!isFinite(n)) { return dashIfEmpty === false ? '0.00' : '-'; }
+            return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        window.fmtPKR = function (value, dashIfEmpty) {
+            var body = window.fmtMoney(value, dashIfEmpty);
+            return body === '-' ? '-' : 'PKR ' + body;
+        };
+
+        window.fmtCount = function (value) {
+            var n = parseFloat(value);
+            return isFinite(n) ? Math.round(n).toLocaleString('en-US') : '0';
+        };
+
+        /* ===== FIT STAT VALUES =====
+           A card's amount must stay on one line: wrapping "PKR" away from
+           its digits changes that card's height and pulls the whole row of
+           cards out of alignment. The CSS keeps it on one line; this steps
+           the type down for the rare value too long for its card, so a
+           number is never clipped or hidden behind an ellipsis. */
+        window.fitStatValues = function () {
+            var BASE_PX = 22, MIN_PX = 13;
+            document.querySelectorAll('.o_stat_value').forEach(function (el) {
+                el.style.fontSize = '';
+                var size = parseFloat(window.getComputedStyle(el).fontSize) || BASE_PX;
+                while (el.scrollWidth > el.clientWidth + 1 && size > MIN_PX) {
+                    size -= 1;
+                    el.style.fontSize = size + 'px';
+                }
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+
+            window.fitStatValues();
+            var refitTimer = null;
+            window.addEventListener('resize', function () {
+                clearTimeout(refitTimer);
+                refitTimer = setTimeout(window.fitStatValues, 150);
+            });
+
+            const sidebar = document.querySelector('.o_sidebar');
+            const mainContent = document.querySelector('.o_main_content');
+
+            /* Retractable navigation. The choice is remembered, because
+               someone who works on the wide boards wants it collapsed every
+               time, not once. Collapsing changes the width of every card and
+               table on the page, so the layout work that keys off width is
+               told to run again. */
+            const navCollapse = document.getElementById('navCollapse');
+            if (navCollapse) {
+                const STORE_KEY = 'ontrack.nav.collapsed';
+
+                function applyNav(collapsed) {
+                    document.body.classList.toggle('o_nav_collapsed', collapsed);
+                    navCollapse.setAttribute('aria-expanded', String(!collapsed));
+                    navCollapse.title = collapsed ? 'Show navigation' : 'Hide navigation';
+                    navCollapse.setAttribute('aria-label', navCollapse.title);
+                    navCollapse.innerHTML = '<i data-lucide="panel-left-'
+                        + (collapsed ? 'open' : 'close') + '"></i>';
+                    if (window.lucide) { window.lucide.createIcons(); }
+                }
+
+                let stored = null;
+                try { stored = localStorage.getItem(STORE_KEY); } catch (e) { /* private mode */ }
+                if (stored === '1') { applyNav(true); }
+
+                navCollapse.addEventListener('click', function () {
+                    const collapsed = !document.body.classList.contains('o_nav_collapsed');
+                    applyNav(collapsed);
+                    try { localStorage.setItem(STORE_KEY, collapsed ? '1' : '0'); } catch (e) { }
+                    // The transition is 220ms; let it land before anything
+                    // measures the new width.
+                    setTimeout(function () {
+                        window.dispatchEvent(new Event('resize'));
+                    }, 260);
+                });
+            }
+
+            if (mainContent) {
+                mainContent.addEventListener('click', function () {
+                    if (window.innerWidth <= 768) {
+                        sidebar.classList.remove('open');
+                    }
+                });
+            }
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    sidebar.classList.remove('open');
+                }
+            });
+
+            /* Whole-row drill-through: any `<tr class="o_row_link"
+               data-href="...">` opens its record. Delegated from the document
+               so rows rendered later by JS work too. Clicks that land on a
+               real control inside the row keep their own behaviour. */
+            document.addEventListener('click', function (e) {
+                const row = e.target.closest('.o_row_link');
+                if (!row || !row.dataset.href) { return; }
+                if (e.target.closest('a, button, input, select, textarea, label')) { return; }
+                window.location.href = row.dataset.href;
+            });
+
+            // Restore sidebar group states from localStorage
+            const groups = document.querySelectorAll('.o_menu_group');
+            groups.forEach(function (group) {
+                const header = group.querySelector('.o_menu_group_header');
+                const body = group.querySelector('.o_menu_group_body');
+                const toggle = group.querySelector('.o_group_toggle');
+                if (header && body) {
+                    const key = 'sidebar_group_' + header.textContent.trim().replace(/\s+/g, '_');
+                    const saved = localStorage.getItem(key);
+                    if (saved === 'collapsed') {
+                        body.classList.add('collapsed');
+                        if (toggle) toggle.classList.add('collapsed');
+                    }
+                }
+            });
+        });
+
+        // Toggle collapsible sidebar group
+        function toggleGroup(header) {
+            const group = header.closest('.o_menu_group');
+            const body = group.querySelector('.o_menu_group_body');
+            const toggle = group.querySelector('.o_group_toggle');
+
+            if (body) {
+                body.classList.toggle('collapsed');
+                if (toggle) toggle.classList.toggle('collapsed');
+
+                // Save state to localStorage
+                const key = 'sidebar_group_' + header.textContent.trim().replace(/\s+/g, '_');
+                if (body.classList.contains('collapsed')) {
+                    localStorage.setItem(key, 'collapsed');
+                } else {
+                    localStorage.removeItem(key);
+                }
+            }
+        }
+    </script>
+
+    {% if current_user.is_authenticated %}
+    <script>
+        /* ===== PERSONAL DESKTOP NOTIFICATIONS =====
+           Polls this user's own feed and raises anything not yet delivered as
+           a real desktop notification. Titles are already personalised
+           server-side ("You have a new PO, Ayesha"), so the browser shows the
+           person their own name.
+
+           Permission is requested on the first click anywhere on the page,
+           not on load - browsers reject (and users resent) a prompt fired
+           before any interaction. Without permission the bell still works;
+           only the OS-level popup is skipped. */
+        (function () {
+            const POLL_MS = 45000;
+            // CSRF protection covers every POST in the app, these included.
+            // Without the token the mark-read calls come back 400 and the
+            // bell silently keeps its count - which is exactly how "Mark all
+            // read" looked like a dead button.
+            const CSRF_TOKEN = '{{ csrf_token() if csrf_token is defined else "" }}';
+            const POST_HEADERS = {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': CSRF_TOKEN
+            };
+            const bell = document.getElementById('notifBell');
+            const panel = document.getElementById('notifPanel');
+            const list = document.getElementById('notifList');
+            const countEl = document.getElementById('notifCount');
+            const clearBtn = document.getElementById('notifClear');
+            if (!bell || !panel || !list || !countEl) { return; }
+
+            let permissionAsked = false;
+
+            function askPermissionOnce() {
+                if (permissionAsked || !('Notification' in window)) { return; }
+                permissionAsked = true;
+                if (Notification.permission === 'default') {
+                    Notification.requestPermission().catch(function () { /* user dismissed */ });
+                }
+            }
+            document.addEventListener('click', askPermissionOnce, { once: true });
+
+            function relativeTime(iso) {
+                if (!iso) { return ''; }
+                const then = new Date(iso);
+                const mins = Math.round((Date.now() - then.getTime()) / 60000);
+                if (mins < 1) { return 'just now'; }
+                if (mins < 60) { return mins + ' min ago'; }
+                const hours = Math.round(mins / 60);
+                if (hours < 24) { return hours + ' hr ago'; }
+                return then.toLocaleDateString();
+            }
+
+            function render(notifications) {
+                countEl.hidden = notifications.length === 0;
+                countEl.textContent = notifications.length > 99 ? '99+' : String(notifications.length);
+
+                if (notifications.length === 0) {
+                    list.innerHTML = '<p class="o_notif_empty">You\'re all caught up.</p>';
+                    return;
+                }
+
+                list.innerHTML = '';
+                notifications.forEach(function (n) {
+                    const item = document.createElement('a');
+                    item.className = 'o_notif_item';
+                    item.href = n.url || '#';
+                    item.addEventListener('click', function () { markRead([n.id]); });
+
+                    const title = document.createElement('div');
+                    title.className = 'o_notif_title';
+                    title.textContent = n.title;
+                    item.appendChild(title);
+
+                    if (n.body) {
+                        const body = document.createElement('div');
+                        body.className = 'o_notif_body';
+                        body.textContent = n.body;
+                        item.appendChild(body);
+                    }
+
+                    const time = document.createElement('div');
+                    time.className = 'o_notif_time';
+                    time.textContent = relativeTime(n.created_at);
+                    item.appendChild(time);
+
+                    list.appendChild(item);
+                });
+            }
+
+            function raiseDesktop(undelivered) {
+                if (!undelivered.length) { return; }
+
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    undelivered.forEach(function (n) {
+                        try {
+                            const note = new Notification(n.title, {
+                                body: n.body || '',
+                                tag: 'ontrack-' + n.id
+                            });
+                            if (n.url) {
+                                note.onclick = function () {
+                                    window.focus();
+                                    window.location.href = n.url;
+                                };
+                            }
+                        } catch (e) { /* some browsers block constructor use */ }
+                    });
+                }
+
+                // Mark delivered either way - a notification the user chose
+                // not to receive as a popup must not queue up forever.
+                fetch('{{ url_for("notifications.mark_delivered") }}', {
+                    method: 'POST',
+                    headers: POST_HEADERS,
+                    body: JSON.stringify({ ids: undelivered.map(function (n) { return n.id; }) })
+                }).catch(function () { /* retried on the next poll */ });
+            }
+
+            function markRead(ids) {
+                return fetch('{{ url_for("notifications.mark_read") }}', {
+                    method: 'POST',
+                    headers: POST_HEADERS,
+                    body: JSON.stringify(ids ? { ids: ids } : {})
+                }).then(function (r) {
+                    // Only redraw off a request that actually landed. Polling
+                    // after a rejected call just repaints the same unread
+                    // list, which reads as the click doing nothing.
+                    if (r.ok) { return poll(); }
+                }).catch(function () { });
+            }
+
+            function poll() {
+                return fetch('{{ url_for("notifications.feed") }}')
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (data) {
+                        if (!data || !data.success) { return; }
+                        render(data.notifications || []);
+                        raiseDesktop(data.undelivered || []);
+                    })
+                    .catch(function () { /* offline - try again next tick */ });
+            }
+
+            bell.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const open = panel.hidden;
+                panel.hidden = !open;
+                bell.setAttribute('aria-expanded', String(open));
+                if (open) { poll(); }
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!panel.hidden && !panel.contains(e.target) && e.target !== bell) {
+                    panel.hidden = true;
+                    bell.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    markRead(null);
+                });
+            }
+
+            poll();
+            setInterval(poll, POLL_MS);
+        })();
+    </script>
+    {% endif %}
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

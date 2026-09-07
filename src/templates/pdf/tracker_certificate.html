@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Tracker Certificate</title>
+    <style>
+        /* Rendered by wkhtmltopdf, whose WebKit predates flex and grid - the
+           whole document is laid out in tables so what is approved on screen
+           is what comes out of the printer. */
+        @page {
+            margin: 0;
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #1F2637;
+            margin: 0;
+            padding: 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* ---------- certificate frame ---------- */
+        /* A double rule set in from the page edge: the oldest signal in print
+           that a page is a certificate and not a form. Sized to the sheet
+           (A4 297mm less an 11mm margin top and bottom) so the border frames
+           the whole page - a frame that stops two thirds down reads as a
+           form that ran out of fields. 272mm rather than 275mm: wkhtmltopdf
+           rounds up and tips onto a second page at the exact figure. */
+        .frame-outer {
+            margin: 11mm;
+            height: 272mm;
+            border: 3px solid #3B5599;
+            padding: 3px;
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+
+        .frame-inner {
+            height: 100%;
+            border: 1px solid #9BAAD2;
+            padding: 11mm 11mm 9mm 11mm;
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+
+        /* Full-height layout table: the middle row absorbs whatever space the
+           content leaves, which pins the sign-off to the foot of the frame.
+           No flexbox - this renderer's WebKit predates it. */
+        table.sheet {
+            width: 100%;
+            height: 100%;
+            border-collapse: collapse;
+        }
+
+        table.sheet > tbody > tr > td {
+            padding: 0;
+            vertical-align: top;
+        }
+
+        table.sheet > tbody > tr > td.filler {
+            height: 100%;
+        }
+
+        table.sheet > tbody > tr > td.foot {
+            vertical-align: bottom;
+        }
+
+        /* ---------- letterhead, left-aligned ---------- */
+        .letterhead {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .letterhead td {
+            vertical-align: middle;
+            text-align: left;
+            padding: 0;
+        }
+
+        .letterhead .mark-cell {
+            width: 108px;
+        }
+
+        /* Height only - a width alongside it makes wkhtmltopdf stretch the
+           mark to both, which is what threw it out of proportion. */
+        .logo {
+            height: 76px;
+            width: auto;
+        }
+
+        .company-name {
+            font-size: 21px;
+            font-weight: bold;
+            color: #1F2637;
+            letter-spacing: 0.4px;
+            line-height: 1.2;
+        }
+
+        .company-contact {
+            font-size: 10.5px;
+            color: #4A5265;
+            line-height: 1.55;
+            margin-top: 3px;
+        }
+
+        .rule {
+            border-top: 2px solid #3B5599;
+            margin: 14px 0 0 0;
+            height: 0;
+            font-size: 0;
+        }
+
+        /* ---------- title ---------- */
+        .title-block {
+            text-align: center;
+            padding: 26px 0 6px 0;
+        }
+
+        .cert-title {
+            font-size: 34px;
+            font-weight: bold;
+            letter-spacing: 7px;
+            color: #3B5599;
+            text-transform: uppercase;
+            line-height: 1.15;
+        }
+
+        .cert-subtitle {
+            font-size: 11px;
+            letter-spacing: 3.5px;
+            text-transform: uppercase;
+            color: #7A8299;
+            padding-top: 8px;
+        }
+
+        .title-flourish {
+            width: 120px;
+            border-top: 2px solid #C9A227;
+            margin: 12px auto 0 auto;
+            height: 0;
+            font-size: 0;
+        }
+
+        .statement {
+            text-align: center;
+            font-size: 13px;
+            color: #2B3245;
+            padding: 18px 8mm 4px 8mm;
+            line-height: 1.7;
+            font-weight: bold;
+        }
+
+        /* ---------- particulars ---------- */
+        .particulars-heading {
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: #FFFFFF;
+            background-color: #3B5599;
+            padding: 8px;
+            margin-top: 18px;
+        }
+
+        table.fields {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.fields td {
+            border: 1px solid #C6CFE4;
+            padding: 11px 16px;
+            font-size: 13px;
+        }
+
+        table.fields td.label {
+            width: 42%;
+            text-align: left;
+            font-size: 10.5px;
+            font-weight: bold;
+            letter-spacing: 1.1px;
+            text-transform: uppercase;
+            color: #6B7385;
+            background-color: #F4F7FD;
+        }
+
+        table.fields td.value {
+            text-align: left;
+            font-weight: bold;
+            font-size: 14px;
+            color: #1F2637;
+        }
+
+        /* ---------- sign-off ---------- */
+        .signoff {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 34px;
+        }
+
+        .signoff td {
+            vertical-align: bottom;
+            font-size: 11px;
+            color: #4A5265;
+        }
+
+        .signoff .issued {
+            text-align: left;
+        }
+
+        /* Both feet of the sign-off - date and issuer - are the same kind of
+           labelled fact, so they share one style rather than one being
+           styled and the other inheriting whatever it lands on. */
+        .signoff .key {
+            font-size: 9.5px;
+            font-weight: bold;
+            letter-spacing: 1.1px;
+            text-transform: uppercase;
+            color: #8A93A8;
+        }
+
+        .signoff .val {
+            font-size: 13px;
+            font-weight: bold;
+            color: #1F2637;
+        }
+
+        /* Issued-by, not signed-by: a stated issuer, not a ruled line
+           waiting for a signature the certificate does not require. */
+        .signoff .issuer {
+            text-align: right;
+        }
+
+        .footer-note {
+            text-align: center;
+            margin-top: 26px;
+            padding-top: 10px;
+            border-top: 1px solid #E2E8F4;
+            font-size: 9.5px;
+            color: #8A93A8;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="frame-outer">
+        <div class="frame-inner">
+            <table class="sheet">
+                <tr>
+                    <td>
+
+            {# Letterhead: mark, company name and the contact block, all left
+               aligned as one group. It used to sit centred on the right,
+               reading as a second column competing with the logo. #}
+            <table class="letterhead">
+                <tr>
+                    <td class="mark-cell">
+                        {% if logo_path %}
+                        <img src="{{ logo_path }}" class="logo" alt="Ontrack Logo">
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="company-name">Ontrack (Pvt.) Limited</div>
+                        <div class="company-contact">
+                            C-25 Office # 1, 3rd Floor Old Sunset &middot;
+                            UAN: 0311-1345070 &middot; Phone: 021-36100246<br>
+                            WhatsApp: 0311-1345070 &middot; info@on-tracking.com &middot;
+                            www.on-tracking.com
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            <div class="rule"></div>
+
+            <div class="title-block">
+                <div class="cert-title">Tracker Certificate</div>
+                <div class="cert-subtitle">Vehicle Tracking System Installation</div>
+                <div class="title-flourish"></div>
+            </div>
+
+            <div class="particulars-heading">Particulars</div>
+            <table class="fields">
+                {% for label, value in fields %}
+                <tr>
+                    <td class="label">{{ label }}</td>
+                    <td class="value">{{ value }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+
+            {# The certifying sentence sits under the table it refers to -
+               "the specifications above" has to have something above it.
+               It replaced a near-identical sentence that ran before the
+               table; two certifying statements on one certificate reads as
+               a drafting error. #}
+            <div class="statement">
+                This is to certify that OnTrack Vehicle Tracking System has been
+                installed in the vehicle with the specifications above.
+            </div>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="filler"></td>
+                </tr>
+                <tr>
+                    <td class="foot">
+                        <table class="signoff">
+                            <tr>
+                                <td class="issued">
+                                    <div class="key">Date of Issue</div>
+                                    <div class="val">{{ generated_date }}</div>
+                                </td>
+                                <td class="issuer">
+                                    <div class="key">Issued By</div>
+                                    <div class="val">Ontrack (Pvt.) Limited</div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <div class="footer-note">
+                            This is a computer generated document and does not require a
+                            signature.
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</body>
+
+</html>

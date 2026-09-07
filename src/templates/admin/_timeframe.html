@@ -1,0 +1,13 @@
+{# The timeframe every period-scoped section on the board is counted over.
+   Shared by both dashboards - the Administrator needs to know which window
+   they are reading as much as the executive does. #}
+<div class="o_period_filter">
+    <span class="o_period_label"><i data-lucide="calendar-range"></i> Timeframe</span>
+    {# "Today" rather than "Daily": the chip selects one day - the one you are
+       on - and a reader should not have to work out which day "Daily" means. #}
+    {% for key, label in [('daily', 'Today'), ('weekly', 'Weekly'), ('monthly', 'Monthly'),
+    ('quarterly', 'Quarterly'), ('all', 'All Time')] %}
+    <a href="?period={{ key }}" class="o_period_chip {% if period == key %}is_active{% endif %}">{{ label }}</a>
+    {% endfor %}
+    <span class="o_period_range">{{ period_range_label }}</span>
+</div>

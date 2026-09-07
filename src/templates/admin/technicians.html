@@ -1,0 +1,37 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title" style="display: flex; align-items: center; gap: 8px;"><i data-lucide="wrench" style="color: var(--odoo-primary);"></i> Technicians Management</h1>
+    <div class="o_search_bar" style="margin-bottom: 20px;">
+        <a href="{{ url_for('admin.technician_add') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="Add Technician" aria-label="Add Technician"><i data-lucide="plus"></i></a>
+    </div>
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr><th>Name</th><th>Contact</th><th>Address</th><th>Bike Reg</th><th>Tracker IMEI</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for tech in technicians %}
+                <tr class="o_list_record">
+                    <td><strong>{{ tech.name }}</strong></td>
+                    <td>{{ tech.contact or '-' }}</td>
+                    <td>{{ tech.address or '-' }}</td>
+                    <td>{{ tech.bike.bike_registration if tech.bike else '-' }}</td>
+                    <td><code>{{ tech.bike.imei if tech.bike else '-' }}</code></td>
+                    <td><span class="o_badge {% if tech.is_active %}o_badge_success{% else %}o_badge_danger{% endif %}">{{ 'Active' if tech.is_active else 'Inactive' }}</span></td>
+                    <td>
+                        <a href="{{ url_for('admin.technician_edit', tech_id=tech.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit Technician & Bike" aria-label="Edit Technician & Bike"><i data-lucide="pencil"></i></a>
+                        <form method="POST" action="{{ url_for('admin.technician_delete', tech_id=tech.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete Technician" aria-label="Delete Technician"><i data-lucide="trash-2"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+

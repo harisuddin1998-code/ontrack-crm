@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block content %}
+{# The Administrator's view of every suggestion: what came in, who sent it,
+   which part of the system it is about, and when it arrived. Open work sits
+   above closed work and the oldest is at the top, so the thing that has been
+   waiting longest is the first thing read. #}
+<div class="o_container_fluid">
+    <div class="o_dashboard_topbar">
+        <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+            <i data-lucide="lightbulb" style="color: var(--odoo-primary);"></i> Suggestions Wallboard
+        </h1>
+
+        {% set sync_endpoint = url_for('suggestions.api_wallboard_sync') %}
+        {% include '_live_sync.html' %}
+    </div>
+
+    <div class="o_kanban_stats">
+        <a href="{{ url_for('suggestions.wallboard', area=area, search=search) }}"
+            class="o_stat_card o_stat_sky {% if not status %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="lightbulb"></i> All Suggestions</span>
+            <div class="o_stat_value" data-sync="s_total">{{ sync.s_total }}</div>
+            <div class="o_stat_hint">received from users</div>
+        </a>
+
+        <a href="{{ url_for('suggestions.wallboard', status='NEW', area=area, search=search) }}"
+            class="o_stat_card o_stat_amber {% if status == 'NEW' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="inbox"></i> New</span>
+            <div class="o_stat_value" data-sync="s_new">{{ sync.s_new }}</div>
+            <div class="o_stat_hint">not yet picked up</div>
+        </a>
+
+        <a href="{{ url_for('suggestions.wallboard', status='IN_PROGRESS', area=area, search=search) }}"
+            class="o_stat_card o_stat_blue {% if status == 'IN_PROGRESS' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="hammer"></i> In Progress</span>
+            <div class="o_stat_value" data-sync="s_in_progress">{{ sync.s_in_progress }}</div>
+            <div class="o_stat_hint">being worked on</div>
+        </a>
+
+        <a href="{{ url_for('suggestions.wallboard', status='COMPLETED', area=area, search=search) }}"
+            class="o_stat_card o_stat_green {% if status == 'COMPLETED' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="check-circle"></i> Completed</span>
+            <div class="o_stat_value" data-sync="s_completed">{{ sync.s_completed }}</div>
+            <div class="o_stat_hint">fixed or updated</div>
+        </a>
+
+        <a href="{{ url_for('suggestions.wallboard', status='REJECTED', area=area, search=search) }}"
+            class="o_stat_card o_stat_grey {% if status == 'REJECTED' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="x-circle"></i> Rejected</span>
+            <div class="o_stat_value" data-sync="s_rejected">{{ sync.s_rejected }}</div>
+            <div class="o_stat_hint">not taken up</div>
+        </a>
+    </div>
+
+    <form method="get" class="o_report_filters" action="{{ url_for('suggestions.wallboard') }}">
+        <input type="hidden" name="status" value="{{ status }}">
+        <label class="o_report_date"><span>Area</span>
+            <select name="area" class="o_field_widget" style="width: 200px;">
+                <option value="">All areas</option>
+                {% for option in areas %}
+                <option value="{{ option }}" {% if area==option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="o_report_date" style="flex: 1; min-width: 220px;"><span>Search</span>
+            <input type="text" name="search" value="{{ search }}" class="o_field_widget"
+                placeholder="Reference, title or wording">
+        </label>
+        <button type="submit" class="o_button"><i data-lucide="filter"></i> Apply</button>
+        <a href="{{ url_for('suggestions.wallboard') }}" class="o_button o_button_secondary">
+            <i data-lucide="rotate-ccw"></i> Clear
+        </a>
+    </form>
+
+    <div class="o_list_view">
+        <div class="o_section_header o_section_header_flush">
+            <h3><i data-lucide="clipboard-list"></i>
+                {% if status %}{{ statuses.get(status, status) }} Suggestions{% else %}Incoming Suggestions{% endif %}
+            </h3>
+            <span class="o_mis_period_chip">{{ suggestions|length }} shown &middot; oldest open first</span>
+        </div>
+        <table class="o_list_table">
+            <thead>
+                <tr class="o_list_header">
+                    <th>Reference</th>
+                    <th>From</th>
+                    <th>Role</th>
+                    <th>Area</th>
+                    <th>Suggestion</th>
+                    <th>Date &amp; Time</th>
+                    <th class="o_amount">Replies</th>
+                    <th>Status</th>
+                    <th class="o_action_col">Open</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in suggestions %}
+                <tr class="o_list_record o_row_link"
+                    data-href="{{ url_for('suggestions.detail', suggestion_id=s.id) }}">
+                    <td><code>{{ s.reference }}</code></td>
+                    <td><strong>{{ s.raiser_name() }}</strong></td>
+                    <td>{{ s.raiser.get_role_display() if s.raiser else '-' }}</td>
+                    <td>{{ s.area }}</td>
+                    <td>{{ s.title }}</td>
+                    <td>{{ s.created_at.strftime('%d %b %Y, %H:%M') if s.created_at else '-' }}</td>
+                    <td class="o_amount" data-sync="sug_{{ s.id }}_replies">{{ s.messages|length }}</td>
+                    <td>
+                        <span class="o_badge {{ {'NEW': 'o_badge_warning', 'IN_PROGRESS': 'o_badge_info',
+                            'COMPLETED': 'o_badge_success', 'REJECTED': 'o_badge_secondary'}[s.status] }}"
+                            data-sync="sug_{{ s.id }}_status">{{ s.status_label() }}</span>
+                    </td>
+                    <td class="o_action_col">
+                        <a href="{{ url_for('suggestions.detail', suggestion_id=s.id) }}"
+                            class="o_icon_btn o_icon_btn_view" title="Open and reply"
+                            aria-label="Open and reply"><i data-lucide="eye"></i></a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        <i data-lucide="lightbulb" style="display: block; margin: 0 auto 8px;"></i>
+                        No suggestions match this view.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .o_dashboard_topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+</style>
+{% endblock %}

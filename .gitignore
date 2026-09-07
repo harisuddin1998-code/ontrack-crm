@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.tox/
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Flask
+instance/
+.venv/
+.env
+.flaskenv
+*.log
+logs/
+uploads/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+*.pid
+*.sock
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Backup
+*.bak
+*.backup
+backup_*.sql
+*.dump
+
+# Secrets
+*.pem
+*.key
+*.crt
+*.p12
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Uploads (except structure)
+uploads/*
+!uploads/.gitkeep
+
+# SJ_MIS data extraction output (generated on demand, see scripts/extract_sj_mis_data.py)
+SMART_DATA_*/
+
+# Logs
+logs/*
+!logs/.gitkeep
+
+# Deployment
+deployment/ssl/
+
+# Reports
+reports/
+# Claude Code local settings
+.claude/

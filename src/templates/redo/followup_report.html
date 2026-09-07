@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="phone-call" style="color: var(--odoo-primary);"></i> REDO Follow Up Report
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Complete vehicle &amp; conversation history for non-reporting follow-up calls
+            </p>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="{{ url_for('redo.followup_report_export', search=search, outcome=outcome_filter, **{'from': date_range.from_str, 'to': date_range.to_str}) }}"
+                class="o_button">
+                <i data-lucide="file-down"></i> Download (Excel)
+            </a>
+            <a href="{{ url_for('redo.non_reporting_dashboard') }}" class="o_button o_button_secondary">
+                <i data-lucide="arrow-left"></i> Non-Reporting Dashboard
+            </a>
+        </div>
+    </div>
+
+    {# Summary by Contact Outcome. Pastel `o_stat_card`s, each one filtering
+       the table below to its own category. #}
+    <div class="o_kanban_stats">
+        {% for outcome, count in outcome_summary.items() %}
+        <a href="{{ url_for('redo.followup_report', outcome=outcome if outcome != 'Not Yet Contacted' else '') }}"
+            class="o_stat_card {% if outcome == 'Technician Assigned' %}o_stat_sky{% elif outcome == 'Client Requested Removal' %}o_stat_rose{% elif outcome == 'Not Yet Contacted' %}o_stat_grey{% else %}o_stat_amber{% endif %} {% if outcome_filter == outcome %}is_active{% endif %}">
+            <span class="o_stat_label">{{ outcome }}</span>
+            <div class="o_stat_value">{{ count|count_fmt }}</div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Filters -->
+    <form method="GET" class="o_report_filters">
+        <input type="text" name="search" value="{{ search }}" placeholder="Search by Reg. No. or Customer..."
+            class="o_field_widget" style="max-width: 260px;">
+        <select name="outcome" class="o_field_widget" style="max-width: 200px;">
+            <option value="">-- All Outcomes --</option>
+            {% for outcome in outcome_choices %}
+            <option value="{{ outcome }}" {% if outcome_filter==outcome %}selected{% endif %}>{{ outcome }}</option>
+            {% endfor %}
+        </select>
+        <label class="o_report_date"><span>From</span>
+            <input type="date" name="from" value="{{ date_range.from_str }}" class="o_field_widget no-uppercase">
+        </label>
+        <label class="o_report_date"><span>To</span>
+            <input type="date" name="to" value="{{ date_range.to_str }}" class="o_field_widget no-uppercase">
+        </label>
+        <button type="submit" class="o_button">
+            <i data-lucide="filter"></i> Apply Filters
+        </button>
+        {% if search or outcome_filter or date_range.is_filtered %}
+        <a href="{{ url_for('redo.followup_report') }}" class="o_button o_button_secondary">
+            <i data-lucide="x"></i> Clear
+        </a>
+        {% endif %}
+        <span class="o_report_showing">Showing <strong>{{ date_range.label }}</strong></span>
+    </form>
+
+    <!-- Conversation & Vehicle Detail Log -->
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Date/Time</th>
+                    <th>Registration</th>
+                    <th>Customer</th>
+                    <th>Contact Person / No.</th>
+                    <th>Channel</th>
+                    <th>Summary</th>
+                    <th>Current Status</th>
+                    <th>REDO Scheduled By</th>
+                    <th>Recorded By</th>
+                    <th class="o_action_col"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for conv in conversations %}
+                <tr class="o_list_record">
+                    <td>{{ conv.conversation_date.strftime('%d/%m/%Y %H:%M') if conv.conversation_date else 'N/A' }}</td>
+                    <td><strong>{{ conv.vehicle.registration_no if conv.vehicle else 'N/A' }}</strong></td>
+                    <td>{{ conv.vehicle.customer_name if conv.vehicle else 'N/A' }}</td>
+                    <td>{{ conv.contact_person or 'N/A' }}<br><small style="color: var(--odoo-text-light);">{{ conv.contact_number or 'N/A' }}</small></td>
+                    <td>
+                        <span class="o_badge o_badge_info">{{ 'WhatsApp' if conv.conversation_type == 'WHATSAPP' else 'Phone Call' }}</span>
+                    </td>
+                    <td style="max-width: 320px; white-space: normal;">{{ conv.summary or 'N/A' }}</td>
+                    <td>
+                        {% set current_outcome = conv.vehicle.contact_outcome if conv.vehicle else None %}
+                        <span class="o_badge {% if current_outcome == 'Technician Assigned' %}o_badge_info{% elif current_outcome == 'Client Requested Removal' %}o_badge_danger{% elif current_outcome %}o_badge_warning{% else %}o_badge_secondary{% endif %}">
+                            {{ current_outcome or 'Not Yet Contacted' }}
+                        </span>
+                    </td>
+                    <td>
+                        {# Whoever raised the REDO for this vehicle - the
+                           scheduler, not the technician it went to. #}
+                        {% set redo_info = scheduled_by.get(conv.vehicle.registration_no) if conv.vehicle else None %}
+                        {% if redo_info %}
+                        <strong>{{ redo_info.scheduled_by or 'N/A' }}</strong>
+                        <br><small style="color: var(--odoo-text-light);">{{ redo_info.redo_number or '' }}</small>
+                        {% else %}
+                        <span style="color: var(--odoo-text-muted);">No REDO scheduled</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ conv.recorded_by_name or 'N/A' }}</td>
+                    <td class="o_action_col">
+                        {% if conv.vehicle %}
+                        <a href="{{ url_for('redo.non_reporting_detail', vehicle_id=conv.vehicle.id) }}" class="o_icon_btn o_icon_btn_view" title="View Vehicle Details" aria-label="View Vehicle Details">
+                            <i data-lucide="eye"></i>
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        No follow-up conversations recorded{% if outcome_filter %} for "{{ outcome_filter }}"{% endif %}.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

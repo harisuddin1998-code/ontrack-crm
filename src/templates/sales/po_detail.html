@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+            <i data-lucide="file-spreadsheet" class="lucide-icon" style="color: var(--odoo-primary);"></i> PO {{ po.po_number }}
+        </h1>
+        <a href="{{ url_for('sales.dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="arrow-left" class="lucide-icon"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <div class="o_form_view">
+        <div class="o_form_header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h2 class="o_form_title">{{ po.owner_name }}</h2>
+                <p class="o_form_subtitle">{{ po.reg_no }}</p>
+            </div>
+            <span class="o_badge {% if po.status == 'COMPLETED' %}o_badge_success{% elif po.status == 'IN_PROGRESS' %}o_badge_info{% elif po.status == 'CANCELLED' %}o_badge_danger{% else %}o_badge_warning{% endif %}">
+                {{ po.status }}
+            </span>
+        </div>
+        <div class="o_form_body">
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Customer Name</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.owner_name }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Contact Number</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.owner_contact }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Registration No.</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.reg_no }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">City</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.city or 'N/A' }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Manufacturer</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.vehicle_make }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Brand</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.vehicle_model }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Year / Model</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.vehicle_year }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Color</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.vehicle_color }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Chassis No.</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.chassis_number }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Engine No.</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.engine_number }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Technician Assigned</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.technician_assigned or 'Unassigned' }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">IMEI No.</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.imei_no or 'N/A' }}</div></div>
+            </div>
+
+            {% if po.status == 'COMPLETED' %}
+            <div style="background: var(--odoo-success); border: 1px solid var(--odoo-success-border); border-radius: 10px; padding: 16px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h5 style="margin: 0 0 4px 0; color: var(--odoo-success-dark); font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="shield-check" class="lucide-icon"></i> Tracker Certificate
+                    </h5>
+                    <p style="margin: 0; font-size: 12px; color: var(--odoo-text-light);">Installation completed - generate the customer's tracker certificate.</p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a href="{{ url_for('sales.po_certificate', po_id=po.id) }}" class="pastel-btn-success" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <i data-lucide="file-down" class="lucide-icon"></i> Certificate (PDF)
+                    </a>
+                    <a href="{{ url_for('sales.po_certificate', po_id=po.id, format='excel') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <i data-lucide="sheet" class="lucide-icon"></i> Certificate (Excel)
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <div style="background: var(--odoo-warning); border: 1px solid var(--odoo-warning-border); border-radius: 10px; padding: 14px; margin-top: 10px; font-size: 12px; color: var(--odoo-warning-dark);">
+                <i data-lucide="info" class="lucide-icon"></i> The Tracker Certificate becomes available once the installer marks this PO as Completed.
+            </div>
+            {% endif %}
+
+            <div class="o_action_bar">
+                <a href="{{ url_for('sales.dashboard') }}" class="pastel-btn-secondary">Back</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

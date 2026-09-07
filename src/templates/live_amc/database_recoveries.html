@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .lucide-icon { width: 16px; height: 16px; display: inline-block; vertical-align: text-bottom; }
+
+    /* Same calendar strip as the Sheet Method, so the two AMC pages are
+       navigated the same way. */
+    .lamc-day-strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 22px; }
+    .lamc-day-cell {
+        min-width: 44px; padding: 6px 4px; border-radius: 8px; text-align: center;
+        border: 1px solid #e2e8f0; background: #ffffff; text-decoration: none; color: #334155;
+        font-size: 12px; transition: all .15s ease;
+    }
+    .lamc-day-cell:hover { border-color: #6B8DD6; text-decoration: none; }
+    .lamc-day-cell .d-num { display: block; font-weight: 700; font-size: 14px; }
+    .lamc-day-cell .d-count { display: block; font-size: 10px; color: #94a3b8; }
+    .lamc-day-cell.has-due .d-count { color: #dc2626; font-weight: 700; }
+    .lamc-day-cell.is-today { border-color: #10b981; background: #f0fdf4; box-shadow: 0 0 0 2px rgba(16,185,129,.2); }
+    .lamc-day-cell.is-selected { border-color: #6B8DD6; background: #eff6ff; box-shadow: 0 0 0 2px rgba(107,141,214,.25); }
+    .lamc-day-cell.is-future { opacity: .65; }
+
+    /* One card per customer. The vehicles sit inside it because they are one
+       phone call, not several pieces of work. */
+    .amc-customer {
+        background: #ffffff;
+        border: 1px solid var(--odoo-border);
+        border-radius: 10px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+    .amc-customer-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 14px 18px;
+        background: var(--odoo-primary-soft);
+        border-bottom: 1px solid var(--odoo-border);
+    }
+    .amc-customer-name {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--odoo-primary-dark);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .amc-customer-meta {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--odoo-text-light);
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+    .amc-contact {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 1px solid var(--odoo-border);
+        font-size: 12px;
+        color: var(--odoo-text);
+        text-decoration: none;
+    }
+    .amc-contact:hover { border-color: var(--odoo-primary); text-decoration: none; }
+    .amc-customer-figures { text-align: right; font-size: 12px; color: var(--odoo-text-light); }
+    .amc-customer-figures strong { display: block; font-size: 18px; color: #c2410c; }
+    .amc-customer-body { padding: 0; }
+    .amc-close-out {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 12px 18px;
+        border-top: 1px dashed var(--odoo-border);
+        background: #fbfcfe;
+    }
+    .amc-close-out label { font-size: 11px; font-weight: 700; color: var(--odoo-text-light); }
+    .amc-close-out .o_field_widget { padding: 4px 8px; font-size: 12px; }
+    .amc-close-remarks { flex: 1; min-width: 220px; }
+</style>
+
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="database" class="lucide-icon" style="width: 26px; height: 26px; color: var(--odoo-primary);"></i>
+                AMC Recoveries &mdash; Database Method
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                AMC renews annually on the vehicle's installation anniversary. Every day, whichever vehicles' install date
+                matches that day &amp; month &mdash; across every install year on record in SJ_MIS's AMC ledger &mdash;
+                become due, are clubbed customer-wise and round-robin assigned across Recovery Officers.
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <a href="{{ url_for('live_amc.dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left" class="lucide-icon"></i> Live AMC (Sheet Method)
+            </a>
+            {% if can_generate and target_date <= today %}
+            <form method="POST" action="{{ url_for('live_amc.database_generate') }}" style="display: flex; gap: 8px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="date" value="{{ target_date.isoformat() }}">
+                <button type="submit" class="pastel-btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="refresh-cw" class="lucide-icon"></i> Fetch &amp; Generate {{ target_date.strftime('%d %b %Y') }}
+                </button>
+                {% if customers %}
+                <button type="submit" name="regenerate" value="1" class="pastel-btn-secondary"
+                    style="display: inline-flex; align-items: center; gap: 6px;"
+                    onclick="return confirm('Redistribute this day across the current officers? The follow-up outcomes already recorded for this date will be discarded.');">
+                    <i data-lucide="shuffle" class="lucide-icon"></i> Redistribute
+                </button>
+                {% endif %}
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not officers %}
+    <div class="o_badge o_badge_danger" style="display: block; padding: 10px 14px; margin-bottom: 16px; font-size: 13px;">
+        <i data-lucide="alert-triangle"></i> No active Recovery Officers are configured yet - assign the "AMC / Annual Recovery Officer" role
+        to users under User Management so due customers can actually be distributed.
+    </div>
+    {% endif %}
+
+    <div style="font-size: 12px; color: var(--odoo-text-light); margin-bottom: 4px;">
+        <i data-lucide="database" class="lucide-icon"></i>
+        {% if ledger_size %}
+        {{ '{:,}'.format(ledger_size) }} AMC ledger row(s) on file{% if ledger_synced_at %}, last pulled from SJ_MIS {{ ledger_synced_at.strftime('%d %b %Y %H:%M') }}{% endif %}.
+        {% else %}
+        The AMC ledger has not been pulled from SJ_MIS yet - generate a day to fetch it.
+        {% endif %}
+    </div>
+
+    <!-- Year / Month selectors -->
+    <form method="GET" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 6px;">
+        <div>
+            <label class="field-label" style="display:block; font-size: 11px; color: var(--odoo-text-light);">Year</label>
+            <select name="year" class="o_field_widget" onchange="this.form.submit()">
+                {% for y in range(2019, 2019 + 100) %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="field-label" style="display:block; font-size: 11px; color: var(--odoo-text-light);">Month</label>
+            <select name="month" class="o_field_widget" onchange="this.form.submit()">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ calendar_month_names[m] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <input type="hidden" name="day" value="1">
+    </form>
+
+    <!-- Day strip for the selected month -->
+    <div class="lamc-day-strip">
+        {% for cell in month_matrix %}
+        <a href="{{ url_for('live_amc.database_recoveries', year=year, month=month, day=cell.day) }}"
+           class="lamc-day-cell {% if cell.count > 0 %}has-due{% endif %} {% if cell.is_today %}is-today{% endif %} {% if cell.day == day %}is-selected{% endif %} {% if cell.is_future %}is-future{% endif %}"
+           title="{{ cell.count }} vehicle(s) due">
+            <span class="d-num">{{ cell.day }}</span>
+            <span class="d-count">{{ cell.count if cell.count else '' }}</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <h4 style="margin: 20px 0 12px; color: var(--odoo-primary-dark); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="calendar-days" style="color: var(--odoo-primary);"></i> {{ target_date.strftime('%d %B %Y') }}
+        {% if target_date == today %}<span class="o_badge o_badge_success">LIVE &mdash; TODAY</span>{% endif %}
+    </h4>
+
+    {% if preview_count is not none %}
+    <div class="o_badge o_badge_info" style="display: block; padding: 10px 14px; margin-bottom: 16px; font-size: 13px;">
+        <i data-lucide="clock"></i> This is a future date. <strong>{{ preview_count }}</strong> vehicle(s) will fall due when this day
+        arrives - customers are distributed on the day, not booked in advance.
+    </div>
+    {% elif not customers %}
+    <div class="o_badge o_badge_secondary" style="display: block; padding: 10px 14px; margin-bottom: 16px; font-size: 13px;">
+        <i data-lucide="info"></i>
+        {% if can_generate %}
+        Nothing on this day's list yet. Press "Fetch &amp; Generate" to pull the AMC ledger and distribute whichever vehicles
+        have their anniversary on {{ target_date.strftime('%d %B') }} - past dates included.
+        {% else %}
+        Nothing has been distributed to you for this date.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if customers %}
+    <!-- The day at a glance -->
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
+        <div class="o_dashboard_card" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left: 4px solid #3b82f6;">
+            <div class="o_card_header" style="color: #1e40af; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="users" class="lucide-icon"></i> Customers To Call
+            </div>
+            <div class="o_card_value" style="color: #1e3a8a;">{{ summary.customers }}</div>
+        </div>
+        <div class="o_dashboard_card" style="background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-left: 4px solid #8b5cf6;">
+            <div class="o_card_header" style="color: #5b21b6; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="car" class="lucide-icon"></i> Vehicles Due
+            </div>
+            <div class="o_card_value" style="color: #4c1d95;">{{ summary.vehicles }}</div>
+        </div>
+        <div class="o_dashboard_card" style="background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left: 4px solid #ef4444;">
+            <div class="o_card_header" style="color: #991b1b; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="alert-triangle" class="lucide-icon"></i> Outstanding
+            </div>
+            <div class="o_card_value" style="color: #7f1d1d;">PKR {{ '{:,.0f}'.format(summary.outstanding) }}</div>
+        </div>
+        <div class="o_dashboard_card" style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border-left: 4px solid #f59e0b;">
+            <div class="o_card_header" style="color: #92400e; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="phone-call" class="lucide-icon"></i> Not Yet Contacted
+            </div>
+            <div class="o_card_value" style="color: #78350f;">{{ summary.pending }}</div>
+        </div>
+    </div>
+
+    {% for customer in customers %}
+    <div class="amc-customer">
+        <div class="amc-customer-head">
+            <div>
+                <div class="amc-customer-name">
+                    <i data-lucide="user" class="lucide-icon"></i> {{ customer.client_name }}
+                    {% if customer.is_defaulter %}<span class="o_badge o_badge_danger">DEFAULTER</span>{% endif %}
+                    <span class="o_badge o_badge_info">{{ customer.vehicles | length }} vehicle(s)</span>
+                    {% if customer.pending %}<span class="o_badge o_badge_warning">{{ customer.pending }} pending</span>{% endif %}
+                </div>
+                <div class="amc-customer-meta">
+                    {% if customer.contacts %}
+                    {% for number in customer.contacts %}
+                    <a class="amc-contact" href="tel:{{ number }}" title="Call {{ customer.client_name }}">
+                        <i data-lucide="phone" class="lucide-icon"></i> {{ number }}
+                    </a>
+                    {% endfor %}
+                    {% else %}
+                    <span><i data-lucide="phone-off" class="lucide-icon"></i> No contact number on the ledger</span>
+                    {% endif %}
+                    {% if current_user.is_admin() or current_user.is_manager() %}
+                    <span><i data-lucide="user-check" class="lucide-icon"></i> Officer: <strong>{{ customer.officer_name }}</strong></span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="amc-customer-figures">
+                Outstanding
+                <strong>PKR {{ '{:,.0f}'.format(customer.outstanding) }}</strong>
+            </div>
+        </div>
+
+        <div class="amc-customer-body">
+            <div class="o_list_view">
+                <table class="o_list_table">
+                    <thead class="o_list_header">
+                        <tr>
+                            <th>Reg No</th>
+                            <th>Installed</th>
+                            <th>AMC Period</th>
+                            <th>Receivable</th>
+                            <th>Received</th>
+                            <th>Outstanding</th>
+                            <th>Follow-Up</th>
+                            <th>Remarks</th>
+                            <th class="o_action_col">Record</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in customer.vehicles %}
+                        {% set r = a.record %}
+                        <tr class="o_list_record">
+                            <td><strong>{{ a.registration_no }}</strong></td>
+                            <td>{{ a.installation_date.strftime('%d %b %Y') if a.installation_date else '-' }}</td>
+                            <td>{{ (r.from_year ~ ' - ' ~ r.to_year) if r and r.from_year else '-' }}</td>
+                            <td>PKR {{ '{:,.0f}'.format(r.receivable_amount or 0) if r else '0' }}</td>
+                            <td>PKR {{ '{:,.0f}'.format(r.received_amount or 0) if r else '0' }}</td>
+                            <td><strong style="color:#c2410c;">PKR {{ '{:,.0f}'.format(a.outstanding_amount or 0) }}</strong></td>
+                            <td>
+                                <span class="o_badge {% if a.work_status == 'RECOVERED' %}o_badge_success{% elif a.work_status == 'ESCALATED' %}o_badge_danger{% elif a.work_status == 'CONTACTED' %}o_badge_info{% elif a.work_status == 'SKIPPED' %}o_badge_secondary{% else %}o_badge_warning{% endif %}">
+                                    {{ a.work_status }}
+                                </span>
+                            </td>
+                            <td style="max-width: 220px;">{{ a.remarks or '-' }}</td>
+                            <td class="o_action_col">
+                                <form method="POST" action="{{ url_for('live_amc.database_update_assignment', assignment_id=a.id) }}"
+                                      style="display: flex; gap: 4px; align-items: center;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <select name="work_status" class="o_field_widget" style="padding: 3px 4px; font-size: 11px;">
+                                        {% for status in work_statuses %}
+                                        <option value="{{ status }}" {% if a.work_status == status %}selected{% endif %}>{{ status | title }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <input type="text" name="remarks" class="o_field_widget" style="padding: 3px 6px; font-size: 11px; min-width: 130px;"
+                                           value="{{ a.remarks or '' }}" placeholder="Remarks">
+                                    <button type="submit" class="o_icon_btn o_icon_btn_save" title="Save follow-up" aria-label="Save follow-up">
+                                        <i data-lucide="save"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {# One call covers every vehicle above, so one outcome can close
+               them all out rather than being typed once per row. #}
+            <form class="amc-close-out" method="POST" action="{{ url_for('live_amc.database_update_customer') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="date" value="{{ target_date.isoformat() }}">
+                <input type="hidden" name="client_key" value="{{ customer.key }}">
+                <label for="close_{{ loop.index }}">RECORD ONE CALL AGAINST ALL {{ customer.vehicles | length }} VEHICLE(S)</label>
+                <select id="close_{{ loop.index }}" name="work_status" class="o_field_widget">
+                    {% for status in work_statuses %}
+                    <option value="{{ status }}">{{ status | title }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="remarks" class="o_field_widget amc-close-remarks" placeholder="What the customer said">
+                <button type="submit" class="pastel-btn-secondary" style="padding: 4px 12px; font-size: 12px;">
+                    <i data-lucide="check" class="lucide-icon"></i> Save for customer
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

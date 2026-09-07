@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .o_pagination_wrapper { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; padding: 14px 20px; background: #ffffff; border-radius: 10px; border: 1px solid #DDE3F0; box-shadow: 0 1px 4px rgba(107,141,214,0.04); flex-wrap: wrap; gap: 15px; }
+    .o_page_btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; font-size: 13px; font-weight: 600; border-radius: 6px; border: 1px solid #DDE3F0; background: #F5F7FC; color: #4A5568; text-decoration: none; transition: all 0.15s ease; }
+    .o_page_btn:hover { background: #EEF2FB; color: #3B3F51; border-color: #8EA8E5; text-decoration: none; }
+    .o_page_btn.active { background: #6B8DD6; color: #ffffff !important; border-color: #6B8DD6; box-shadow: 0 2px 4px rgba(107, 141, 214, 0.25); }
+    .o_page_btn.disabled { opacity: 0.45; cursor: not-allowed; background: #F5F7FC; color: #9AA8C0; pointer-events: none; }
+</style>
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="package" style="color: var(--odoo-primary);"></i> Device Inventory
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                GPS tracker stock synced from SJ_MIS, cross-linked with Installation &amp; REDO records
+            </p>
+        </div>
+        {% if current_user.is_admin() or current_user.is_inventory() %}
+        <form method="POST" action="{{ url_for('inventory.sync') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="pastel-btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="refresh-cw" class="lucide-icon"></i> Sync from SJ_MIS
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="o_dashboard_cards">
+        <a href="{{ url_for('inventory.dashboard') }}" class="o_dashboard_card" style="text-decoration: none; background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left: 4px solid #3b82f6;">
+            <div class="o_card_header" style="color: #1e40af;"><i data-lucide="boxes"></i> Total Devices</div>
+            <div class="o_card_value" style="color: #1e3a8a;">{{ stats.total }}</div>
+        </a>
+        <a href="{{ url_for('inventory.dashboard', status='IN_STOCK') }}" class="o_dashboard_card" style="text-decoration: none; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-left: 4px solid #10b981;">
+            <div class="o_card_header" style="color: #15803d;"><i data-lucide="warehouse"></i> In Stock</div>
+            <div class="o_card_value" style="color: #166534;">{{ stats.in_stock }}</div>
+        </a>
+        <a href="{{ url_for('inventory.dashboard', status='ASSIGNED') }}" class="o_dashboard_card" style="text-decoration: none; background: linear-gradient(135deg, #fefce8, #fef9c3); border-left: 4px solid #eab308;">
+            <div class="o_card_header" style="color: #854d0e;"><i data-lucide="user-check"></i> Assigned to Technicians</div>
+            <div class="o_card_value" style="color: #713f12;">{{ stats.assigned }}</div>
+        </a>
+        <a href="{{ url_for('inventory.dashboard', status='INSTALLED') }}" class="o_dashboard_card" style="text-decoration: none; background: linear-gradient(135deg, #faf5ff, #f3e8ff); border-left: 4px solid #a855f7;">
+            <div class="o_card_header" style="color: #6b21a8;"><i data-lucide="check-circle-2"></i> Installed</div>
+            <div class="o_card_value" style="color: #581c87;">{{ stats.installed }}</div>
+        </a>
+    </div>
+
+    <form method="GET" style="display: flex; gap: 10px; align-items: center; margin: 20px 0; flex-wrap: wrap;">
+        <input type="text" name="search" value="{{ search }}" placeholder="Search IMEI, SIM, device name, or plate..." class="o_field_widget" style="max-width: 320px;">
+        <select name="status" class="o_field_widget" style="max-width: 200px;">
+            <option value="">-- All Statuses --</option>
+            <option value="IN_STOCK" {% if status_filter == 'IN_STOCK' %}selected{% endif %}>In Stock</option>
+            <option value="ASSIGNED" {% if status_filter == 'ASSIGNED' %}selected{% endif %}>Assigned</option>
+            <option value="INSTALLED" {% if status_filter == 'INSTALLED' %}selected{% endif %}>Installed</option>
+            <option value="RETURNED" {% if status_filter == 'RETURNED' %}selected{% endif %}>Returned</option>
+        </select>
+        <button type="submit" class="pastel-btn-primary"><i data-lucide="filter" class="lucide-icon"></i> Apply</button>
+        {% if search or status_filter %}
+        <a href="{{ url_for('inventory.dashboard') }}" class="pastel-btn-secondary">Clear</a>
+        {% endif %}
+    </form>
+
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>IMEI</th>
+                    <th>SIM</th>
+                    <th>Device Name</th>
+                    <th>Last Known Plate</th>
+                    <th>Signal</th>
+                    <th>Status</th>
+                    <th>Assigned Technician</th>
+                    <th>Linked Records</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for device in devices %}
+                <tr class="o_list_record">
+                    <td><strong>{{ device.imei }}</strong></td>
+                    <td>{{ device.sim_number or 'N/A' }}</td>
+                    <td>{{ device.device_name or 'N/A' }}</td>
+                    <td>{{ device.plate_number or 'N/A' }}</td>
+                    <td>
+                        {% if device.is_reporting() %}
+                        <span class="o_badge o_badge_success"><i data-lucide="wifi"></i> Reporting</span>
+                        {% else %}
+                        <span class="o_badge o_badge_secondary"><i data-lucide="wifi-off"></i> Offline</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="o_badge {% if device.status == 'INSTALLED' %}o_badge_success{% elif device.status == 'ASSIGNED' %}o_badge_warning{% elif device.status == 'RETURNED' %}o_badge_secondary{% else %}o_badge_info{% endif %}">
+                            {{ device.status.replace('_', ' ') }}
+                        </span>
+                    </td>
+                    <td>{{ device.assigned_technician.name if device.assigned_technician else '-' }}</td>
+                    <td>
+                        {% set link = linked.get(device.imei) %}
+                        {% if link and link.po %}
+                        <a href="{{ url_for('installation.update_po', po_id=link.po.id) }}" class="o_badge o_badge_info" style="text-decoration: none;" title="Installation PO {{ link.po.po_number }}">
+                            <i data-lucide="hammer"></i> PO {{ link.po.po_number }}
+                        </a>
+                        {% endif %}
+                        {% if link and link.redo %}
+                        <a href="{{ url_for('redo.dashboard') }}" class="o_badge o_badge_warning" style="text-decoration: none;" title="REDO {{ link.redo.redo_number or link.redo.id }} on {{ link.redo.registration_no }}">
+                            <i data-lucide="rotate-cw"></i> {{ link.redo.redo_number or ('REDO-' ~ link.redo.id) }}
+                        </a>
+                        {% endif %}
+                        {% if not link or (not link.po and not link.redo) %}
+                        <span style="color: var(--odoo-text-light); font-size: 12px;">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if current_user.is_admin() or current_user.is_inventory() %}
+                            {% if device.status == 'ASSIGNED' %}
+                            <form method="POST" action="{{ url_for('inventory.unassign', device_id=device.id) }}" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="pastel-btn-secondary" style="padding: 4px 10px; font-size: 12px;">Return to Stock</button>
+                            </form>
+                            {% elif device.status == 'IN_STOCK' %}
+                            <form method="POST" action="{{ url_for('inventory.assign', device_id=device.id) }}" style="display: inline-flex; gap: 4px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <select name="technician_id" class="o_field_widget" style="padding: 4px 6px; font-size: 12px;" required>
+                                    <option value="">Assign to...</option>
+                                    {% for tech in technicians %}
+                                    <option value="{{ tech.id }}">{{ tech.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="pastel-btn-primary" style="padding: 4px 10px; font-size: 12px;">Go</button>
+                            </form>
+                            {% else %}
+                            <span style="color: var(--odoo-text-light); font-size: 12px;">-</span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        No devices found{% if search or status_filter %} matching your filters{% else %} - click "Sync from SJ_MIS" to pull the device catalog{% endif %}.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="o_pagination_wrapper">
+        <div style="font-size: 13px; color: #64748b; font-weight: 500;">
+            Showing page <strong>{{ page }}</strong> of <strong>{{ total_pages }}</strong> &mdash; <strong>{{ total }}</strong> device(s) total
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            {% if page > 1 %}
+            <a href="{{ url_for('inventory.dashboard', page=page-1, search=search, status=status_filter) }}" class="o_page_btn">
+                <i data-lucide="chevron-left" class="lucide-icon"></i> Previous
+            </a>
+            {% else %}
+            <span class="o_page_btn disabled"><i data-lucide="chevron-left" class="lucide-icon"></i> Previous</span>
+            {% endif %}
+
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <span class="o_page_btn active">{{ p }}</span>
+                {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                <a href="{{ url_for('inventory.dashboard', page=p, search=search, status=status_filter) }}" class="o_page_btn">{{ p }}</a>
+                {% elif p == 4 or p == total_pages - 3 %}
+                <span style="padding: 4px 6px; color: #9AA8C0; font-weight: 600;">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a href="{{ url_for('inventory.dashboard', page=page+1, search=search, status=status_filter) }}" class="o_page_btn">
+                Next <i data-lucide="chevron-right" class="lucide-icon"></i>
+            </a>
+            {% else %}
+            <span class="o_page_btn disabled">Next <i data-lucide="chevron-right" class="lucide-icon"></i></span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

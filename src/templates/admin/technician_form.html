@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-user-cog" style="color: var(--odoo-primary);"></i>
+        {{ title }}
+    </h1>
+    
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Technician Details</h2>
+            <p class="o_form_subtitle">{% if technician %}Edit{% else %}Add{% endif %} technician information</p>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="" id="technician-form">
+                {{ form.hidden_tag() }}
+                
+                <!-- GPS Sync Section -->
+                <div style="background: var(--odoo-primary-soft); padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid var(--odoo-primary-light);">
+                    <h4 style="color: var(--odoo-primary-dark); margin-bottom: 10px;">
+                        <i class="fas fa-satellite" style="color: var(--odoo-primary);"></i> GPS Location Sync
+                    </h4>
+                    <p style="color: var(--odoo-text-light); font-size: 12px; margin-bottom: 15px;">
+                        Enter the tracker IMEI and click "Test IMEI" to auto-populate the technician's home address from GPS.
+                        This will be used as Point A for trip distance calculations.
+                    </p>
+                    <div class="o_form_group">
+                        <div class="o_field_group" style="display: flex; align-items: center; gap: 10px;">
+                            {{ form.sync_gps() }}
+                            <label class="o_field_label" style="margin: 0; font-weight: 400; cursor: pointer;">{{ form.sync_gps.label }}</label>
+                            <small style="color: var(--odoo-text-light); font-size: 10px; margin-left: 10px;">
+                                (Check to fetch GPS location)
+                            </small>
+                        </div>
+                        <div class="o_field_group">
+                            <label class="o_field_label">{{ form.imei_for_sync.label }}</label>
+                            <div style="display: flex; gap: 10px;">
+                                {{ form.imei_for_sync(class="o_field_widget", id="imei_for_sync", placeholder="Enter IMEI number (e.g., 123456789012345)") }}
+                                <button type="button" class="o_button o_button_info o_button_sm" onclick="testImei()" style="white-space: nowrap;">
+                                    <i class="fas fa-search"></i> Test IMEI
+                                </button>
+                            </div>
+                            <small style="color: var(--odoo-text-light); font-size: 10px; display: block; margin-top: 4px;">
+                                The IMEI of the tracker installed on the technician's bike
+                            </small>
+                            <div id="imei-test-result" style="margin-top: 8px; display: none;"></div>
+                        </div>
+                    </div>
+                    {% if technician and technician.bike_assignment %}
+                    <div style="margin-top: 10px; padding: 10px; background: var(--odoo-white); border-radius: 8px;">
+                        <small style="color: var(--odoo-text-light);">
+                            <i class="fas fa-info-circle"></i> 
+                            Current bike IMEI: <strong>{{ technician.bike_assignment.imei }}</strong>
+                            {% if technician.home_lat and technician.home_lng %}
+                            <br>📍 Current location: <strong>{{ technician.address or 'Not set' }}</strong>
+                            <br>🎯 Lat: <strong>{{ technician.home_lat }}</strong>, Lng: <strong>{{ technician.home_lng }}</strong>
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Technician Information -->
+                <h4 style="margin: 20px 0 15px; color: var(--odoo-primary-dark); border-bottom: 2px solid var(--odoo-primary-soft); padding-bottom: 8px;">
+                    <i class="fas fa-user" style="color: var(--odoo-primary);"></i> Personal Information
+                </h4>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.name.label }}</label>
+                        {{ form.name(class="o_field_widget", id="name", placeholder="Enter technician name") }}
+                        {% if form.name.errors %}
+                            <small style="color: #ff6b6b; font-size: 0.75rem; margin-top: 5px; display: block;">
+                                {% for error in form.name.errors %}{{ error }}{% endfor %}
+                            </small>
+                        {% endif %}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.contact.label }}</label>
+                        {{ form.contact(class="o_field_widget", id="contact", placeholder="Enter contact number") }}
+                    </div>
+                </div>
+                
+                <div class="o_form_group">
+                    <div class="o_field_group" style="grid-column: span 2;">
+                        <label class="o_field_label">{{ form.address.label }}</label>
+                        {{ form.address(class="o_field_widget", id="address", placeholder="Enter home/starting address (Point A)") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px; display: block; margin-top: 4px;">
+                            🏠 This is Point A for trip calculations. Auto-filled from GPS if synced.
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- GPS Coordinates -->
+                <h4 style="margin: 20px 0 15px; color: var(--odoo-primary-dark); border-bottom: 2px solid var(--odoo-primary-soft); padding-bottom: 8px;">
+                    <i class="fas fa-map-marker-alt" style="color: var(--odoo-primary);"></i> GPS Coordinates
+                </h4>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">Home Latitude</label>
+                        {{ form.home_lat(class="o_field_widget", id="home_lat", placeholder="Auto-filled from GPS", readonly=true) }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">Auto-populated from GPS sync</small>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Home Longitude</label>
+                        {{ form.home_lng(class="o_field_widget", id="home_lng", placeholder="Auto-filled from GPS", readonly=true) }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">Auto-populated from GPS sync</small>
+                    </div>
+                </div>
+                
+                <!-- Bike Assignment Details -->
+                <h4 style="margin: 25px 0 15px; color: var(--odoo-primary-dark); border-bottom: 2px solid var(--odoo-primary-soft); padding-bottom: 8px;">
+                    <i class="fas fa-motorcycle" style="color: var(--odoo-primary);"></i> Assigned Bike & Tracker Details
+                </h4>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.bike_registration.label }}</label>
+                        {{ form.bike_registration(class="o_field_widget", placeholder="e.g., ABC-123") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.imei.label }}</label>
+                        {{ form.imei(class="o_field_widget", placeholder="15-digit Tracker IMEI number") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px; display: block; margin-top: 4px;">
+                            Tracker IMEI assigned to technician's bike
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.bike_model.label }}</label>
+                        {{ form.bike_model(class="o_field_widget", placeholder="e.g., Honda CD-70") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.fuel_efficiency.label }}</label>
+                        {{ form.fuel_efficiency(class="o_field_widget", placeholder="e.g., 35.0") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px; display: block; margin-top: 4px;">
+                            Kilometers per liter
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.is_active.label }}</label>
+                        {{ form.is_active(class="o_field_widget", id="is_active") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.bike_active.label }}</label>
+                        {{ form.bike_active(class="o_field_widget", id="bike_active") }}
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="o_action_bar">
+                    <a href="{{ url_for('admin.technicians') }}" class="o_button o_button_secondary">
+                        <i class="fas fa-arrow-left"></i> Cancel
+                    </a>
+                    <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="{% if technician %}Update Technician{% else %}Add Technician{% endif %}" aria-label="{% if technician %}Update Technician{% else %}Add Technician{% endif %}">
+                        <i class="fas fa-floppy-disk"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Toggle IMEI field visibility based on sync checkbox
+    document.addEventListener('DOMContentLoaded', function() {
+        const syncCheckbox = document.querySelector('input[name="sync_gps"]');
+        const imeiField = document.querySelector('input[name="imei_for_sync"]');
+        
+        if (syncCheckbox && imeiField) {
+            function toggleImeiField() {
+                if (syncCheckbox.checked) {
+                    imeiField.disabled = false;
+                    imeiField.required = true;
+                } else {
+                    imeiField.disabled = false;
+                    imeiField.required = false;
+                }
+            }
+            
+            toggleImeiField();
+            syncCheckbox.addEventListener('change', toggleImeiField);
+        }
+        
+        // Auto-dismiss flash messages
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.o_alert');
+            alerts.forEach(function(alert) {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(function() {
+                    alert.remove();
+                }, 500);
+            });
+        }, 5000);
+    });
+    
+    function testImei() {
+        // Get the IMEI input field
+        const imeiInput = document.getElementById('imei_for_sync');
+        const resultDiv = document.getElementById('imei-test-result');
+        
+        // Log for debugging
+        console.log('IMEI Input element:', imeiInput);
+        console.log('Result div element:', resultDiv);
+        
+        if (!imeiInput) {
+            alert('IMEI input field not found! Please check the form.');
+            return;
+        }
+        
+        const imei = imeiInput.value.trim();
+        
+        if (!imei) {
+            if (resultDiv) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color: #ff6b6b;">❌ Please enter an IMEI first</span>';
+            }
+            return;
+        }
+        
+        if (resultDiv) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<span style="color: var(--odoo-text-light);">⏳ Testing IMEI...</span>';
+        }
+        
+        // Make the API call
+        fetch(`/admin/technicians/test-imei?imei=${encodeURIComponent(imei)}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('API Response:', data);
+                
+                if (data.success) {
+                    const loc = data.location || {};
+                    
+                    // Update address field - using the correct ID
+                    const addressField = document.getElementById('address');
+                    if (addressField && loc.address) {
+                        addressField.value = loc.address;
+                        console.log('Address updated:', loc.address);
+                    } else {
+                        console.warn('Address field not found or no address data');
+                    }
+                    
+                    // Update latitude field - using the correct ID
+                    const latField = document.getElementById('home_lat');
+                    if (latField && loc.lat) {
+                        latField.value = loc.lat;
+                        console.log('Latitude updated:', loc.lat);
+                    } else {
+                        console.warn('Latitude field not found or no lat data');
+                    }
+                    
+                    // Update longitude field - using the correct ID
+                    const lngField = document.getElementById('home_lng');
+                    if (lngField && loc.lng) {
+                        lngField.value = loc.lng;
+                        console.log('Longitude updated:', loc.lng);
+                    } else {
+                        console.warn('Longitude field not found or no lng data');
+                    }
+                    
+                    // Show success message
+                    if (resultDiv) {
+                        resultDiv.innerHTML = `
+                            <div style="background: #d4edda; padding: 12px; border-radius: 8px; border-left: 4px solid #28a745;">
+                                <strong style="color: #155724;">✅ IMEI found! Location auto-populated</strong>
+                                <p style="margin: 5px 0 0 0; color: #155724; font-size: 13px;">
+                                    📍 <strong>Address:</strong> ${loc.address || 'Location found'}<br>
+                                    🎯 <strong>Latitude:</strong> ${loc.lat || 'N/A'}<br>
+                                    🎯 <strong>Longitude:</strong> ${loc.lng || 'N/A'}
+                                    ${loc.speed ? `<br>🚗 Speed: ${loc.speed} km/h` : ''}
+                                    ${loc.name ? `<br>📱 Device: ${loc.name}` : ''}
+                                </p>
+                                <p style="margin: 5px 0 0 0; color: #155724; font-size: 12px; font-style: italic;">
+                                    ✅ Fields auto-populated. Click Save to store.
+                                </p>
+                            </div>
+                        `;
+                    }
+                    
+                    // Show a flash message
+                    flashMessage('✅ GPS location found and auto-populated!', 'success');
+                    
+                } else {
+                    if (resultDiv) {
+                        resultDiv.innerHTML = `
+                            <div style="background: #f8d7da; padding: 12px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                                <strong style="color: #721c24;">❌ ${data.error || 'IMEI not found or not reporting'}</strong>
+                                <p style="margin: 5px 0 0 0; color: #721c24; font-size: 13px;">
+                                    Please check the IMEI number and try again.
+                                </p>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                if (resultDiv) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `
+                        <div style="background: #f8d7da; padding: 12px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                            <strong style="color: #721c24;">❌ Error: ${error.message}</strong>
+                        </div>
+                    `;
+                }
+            });
+    }
+    
+    function flashMessage(message, type) {
+        const flashDiv = document.createElement('div');
+        flashDiv.className = `o_alert o_alert_${type}`;
+        const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
+        flashDiv.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
+        const container = document.querySelector('.o_container_fluid');
+        if (container) {
+            container.prepend(flashDiv);
+        }
+        setTimeout(() => {
+            flashDiv.style.transition = 'opacity 0.5s';
+            flashDiv.style.opacity = '0';
+            setTimeout(() => {
+                if (flashDiv.parentNode) {
+                    flashDiv.remove();
+                }
+            }, 500);
+        }, 5000);
+    }
+</script>
+
+<style>
+    /* Style for readonly fields */
+    input[readonly] {
+        background: var(--odoo-secondary) !important;
+        cursor: not-allowed;
+        color: var(--odoo-text-light);
+    }
+    
+    /* GPS sync section highlight */
+    .gps-sync-section {
+        background: linear-gradient(135deg, var(--odoo-primary-soft) 0%, #f0f7fc 100%);
+        border: 1px solid var(--odoo-primary-light);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+    
+    .gps-sync-section h4 {
+        color: var(--odoo-primary-dark);
+        margin-bottom: 8px;
+    }
+    
+    .gps-sync-section .sub-text {
+        color: var(--odoo-text-light);
+        font-size: 12px;
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}

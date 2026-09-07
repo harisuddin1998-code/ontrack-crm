@@ -1,0 +1,86 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-file-invoice" style="color: var(--odoo-primary);"></i> PO Detail - {{ po.po_number }}</h1>
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">{{ po.owner_name }}</h2>
+            <p class="o_form_subtitle">{{ po.reg_no }} | Status: {{ po.status }}</p>
+        </div>
+        <div class="o_form_body">
+            <h2 class="o_form_title" style="font-size: 15px;">Customer</h2>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">PO Number</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.po_number }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Customer</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.owner_name }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Contact</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.owner_contact }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Driver Contact</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.contact_person_driver or '-' }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Existing Customer (Transfer)</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.existing_customer_name or '-' }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Existing Vehicle No.</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.existing_vehicle_number or '-' }}</div></div>
+            </div>
+
+            <h2 class="o_form_title" style="margin-top: 20px; font-size: 15px;">Vehicle</h2>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Registration</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.reg_no }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Manufacturer / Brand</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.vehicle_make }} {{ po.vehicle_model }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Year / Model / Color</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.vehicle_year or '-' }} / {{ po.vehicle_color or '-' }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Chassis / Engine No.</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.chassis_number or '-' }} / {{ po.engine_number or '-' }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">City</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.city or '-' }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Vehicle / Installation Location</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.vehicle_availability_location or '-' }}</div></div>
+            </div>
+
+            <h2 class="o_form_title" style="margin-top: 20px; font-size: 15px;">Installation</h2>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Scheduled Date</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.scheduled_date.strftime('%d/%m/%Y') if po.scheduled_date else '-' }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Technician Assigned</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.technician_assigned or '-' }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">IMEI / SIM</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.imei_no or '-' }} / {{ po.sim_no or '-' }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Device Type / Location</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.device_type or '-' }} / {{ po.device_location or '-' }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Fuel Compensated</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.fuel or '-' }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Tested By</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.tested_by or '-' }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Sales Person</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ (po.sales_person.name or po.sales_person.username) if po.sales_person else '-' }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Arranged By</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.arranged_by_sales_person or '-' }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group" style="flex: 1 1 100%;"><label class="o_field_label">Remarks</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.remarks or '-' }}</div></div>
+            </div>
+
+            <h2 class="o_form_title" style="margin-top: 20px; font-size: 15px;">Financial</h2>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Rates (Installation)</label><div class="o_field_widget" style="background: var(--odoo-secondary);">PKR {{ '%.2f'|format(po.rates or 0) }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">AMC / Monitoring</label><div class="o_field_widget" style="background: var(--odoo-secondary);">PKR {{ '%.2f'|format(po.amc or 0) }}</div></div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Total Amount</label><div class="o_field_widget" style="background: var(--odoo-secondary);">PKR {{ '%.2f'|format(po.get_total_amount()) }}</div></div>
+                {% if po.payment_recovery %}
+                <div class="o_field_group"><label class="o_field_label">Payment Recovery</label><div class="o_field_widget" style="background: var(--odoo-secondary);"><a href="{{ url_for('payment.payment_detail', payment_id=po.payment_recovery.id) }}">{{ po.payment_recovery.payment_status }} - PKR {{ '%.2f'|format(po.payment_recovery.remaining_amount or 0) }} remaining</a></div></div>
+                {% endif %}
+            </div>
+
+            <h2 class="o_form_title" style="margin-top: 20px; font-size: 15px;">Status</h2>
+            <div class="o_form_group">
+                <div class="o_field_group"><label class="o_field_label">Status</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.status }}</div></div>
+                <div class="o_field_group"><label class="o_field_label">Created</label><div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.created_at.strftime('%d/%m/%Y %H:%M') if po.created_at else '-' }}</div></div>
+            </div>
+
+            <div class="o_action_bar">
+                <a href="{{ url_for('admin.pos_list') }}" class="o_button o_button_secondary">Back</a>
+                <a href="{{ url_for('admin.po_edit', po_id=po.id) }}" class="o_icon_btn o_icon_btn_edit o_icon_btn_lg" title="Edit PO" aria-label="Edit PO"><i class="fas fa-pencil-alt"></i></a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

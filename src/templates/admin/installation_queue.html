@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-tools" style="color: var(--odoo-primary);"></i>
+        Installation Queue
+    </h1>
+
+    <div class="o_dashboard_cards">
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.installation_queue') }}" class="o_dashboard_card o_card_primary" style="text-decoration: none;">
+            <div class="o_card_header">Total</div>
+            <div class="o_card_value">{{ stats.total }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_primary">
+            <div class="o_card_header">Total</div>
+            <div class="o_card_value">{{ stats.total }}</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.installation_queue', status='PENDING') }}" class="o_dashboard_card o_card_warning" style="text-decoration: none;">
+            <div class="o_card_header">Pending</div>
+            <div class="o_card_value">{{ stats.pending }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_warning">
+            <div class="o_card_header">Pending</div>
+            <div class="o_card_value">{{ stats.pending }}</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.installation_queue', status='IN_PROGRESS') }}" class="o_dashboard_card o_card_info" style="text-decoration: none;">
+            <div class="o_card_header">In Progress</div>
+            <div class="o_card_value">{{ stats.in_progress }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_info">
+            <div class="o_card_header">In Progress</div>
+            <div class="o_card_value">{{ stats.in_progress }}</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.installation_queue', status='COMPLETED') }}" class="o_dashboard_card o_card_success" style="text-decoration: none;">
+            <div class="o_card_header">Completed</div>
+            <div class="o_card_value">{{ stats.completed }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_success">
+            <div class="o_card_header">Completed</div>
+            <div class="o_card_value">{{ stats.completed }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="o_search_bar">
+        <input type="text" class="o_search_input" placeholder="Search..." id="searchInput" value="{{ search }}">
+        <select class="o_filter_select" id="statusFilter">
+            <option value="">All</option>
+            <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Pending</option>
+            <option value="IN_PROGRESS" {% if status_filter == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+            <option value="COMPLETED" {% if status_filter == 'COMPLETED' %}selected{% endif %}>Completed</option>
+        </select>
+    </div>
+
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>PO</th>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Technician</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for po in orders %}
+                <tr class="o_list_record">
+                    <td>{{ po.po_number }}</td>
+                    <td>{{ po.owner_name }}</td>
+                    <td>{{ po.vehicle_make }} {{ po.vehicle_model }}</td>
+                    <td>{{ po.technician_assigned or 'Unassigned' }}</td>
+                    <td>
+                        <span class="o_badge {% if po.status == 'COMPLETED' %}o_badge_success{% elif po.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                            {{ po.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('installation.update_po', po_id=po.id) }}" class="o_icon_btn o_icon_btn_edit" title="Update Installation" aria-label="Update Installation">
+                            <i class="fas fa-pencil-alt"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        <i class="fas fa-inbox" style="font-size: 24px; display: block; margin-bottom: 10px;"></i>
+                        No purchase orders found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.getElementById('searchInput').addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            window.location.href = '{{ url_for("admin.installation_queue") }}?search=' + this.value + '&status=' + document.getElementById('statusFilter').value;
+        }
+    });
+    document.getElementById('statusFilter').addEventListener('change', function() {
+        window.location.href = '{{ url_for("admin.installation_queue") }}?search=' + document.getElementById('searchInput').value + '&status=' + this.value;
+    });
+</script>
+{% endblock %}

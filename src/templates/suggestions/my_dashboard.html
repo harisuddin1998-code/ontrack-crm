@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block content %}
+{# A user's own suggestions and what has become of them.
+
+   Deliberately not the wallboard with a filter bolted on: the scoping is the
+   query behind this page, so there is no arrangement of parameters that
+   widens it to somebody else's suggestions. #}
+<div class="o_container_fluid">
+    <div class="o_dashboard_topbar">
+        <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+            <i data-lucide="lightbulb" style="color: var(--odoo-primary);"></i> My Suggestions
+        </h1>
+
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            {% set sync_endpoint = url_for('suggestions.api_my_sync') %}
+            {% include '_live_sync.html' %}
+
+            <a href="{{ url_for('suggestions.new') }}" class="o_button">
+                <i data-lucide="plus"></i> New Suggestion
+            </a>
+        </div>
+    </div>
+
+    <p class="o_form_subtitle" style="margin: 0 0 16px; max-width: 80ch;">
+        Something broken, missing or getting in your way? Send it here. The Administrator
+        works through these and answers on the same ticket, so you can see whether yours
+        is being looked at, has been fixed, or was not taken up.
+    </p>
+
+    {# Each card filters the list to its own status, so the number on the card
+       and the rows underneath are always the same set. #}
+    <div class="o_kanban_stats">
+        <a href="{{ url_for('suggestions.my_suggestions') }}"
+            class="o_stat_card o_stat_sky {% if not status %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="lightbulb"></i> All Suggestions</span>
+            <div class="o_stat_value" data-sync="s_total">{{ sync.s_total }}</div>
+            <div class="o_stat_hint">everything you have sent</div>
+        </a>
+
+        <a href="{{ url_for('suggestions.my_suggestions', status='NEW') }}"
+            class="o_stat_card o_stat_amber {% if status == 'NEW' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="inbox"></i> New</span>
+            <div class="o_stat_value" data-sync="s_new">{{ sync.s_new }}</div>
+            <div class="o_stat_hint">waiting to be picked up</div>
+        </a>
+
+        <a href="{{ url_for('suggestions.my_suggestions', status='IN_PROGRESS') }}"
+            class="o_stat_card o_stat_blue {% if status == 'IN_PROGRESS' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="hammer"></i> In Progress</span>
+            <div class="o_stat_value" data-sync="s_in_progress">{{ sync.s_in_progress }}</div>
+            <div class="o_stat_hint">being worked on</div>
+        </a>
+
+        <a href="{{ url_for('suggestions.my_suggestions', status='COMPLETED') }}"
+            class="o_stat_card o_stat_green {% if status == 'COMPLETED' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="check-circle"></i> Completed</span>
+            <div class="o_stat_value" data-sync="s_completed">{{ sync.s_completed }}</div>
+            <div class="o_stat_hint">fixed or updated</div>
+        </a>
+
+        <a href="{{ url_for('suggestions.my_suggestions', status='REJECTED') }}"
+            class="o_stat_card o_stat_grey {% if status == 'REJECTED' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="x-circle"></i> Not Taken Up</span>
+            <div class="o_stat_value" data-sync="s_rejected">{{ sync.s_rejected }}</div>
+            <div class="o_stat_hint">suggestion rejected</div>
+        </a>
+    </div>
+
+    <div class="o_list_view">
+        <div class="o_section_header o_section_header_flush">
+            <h3><i data-lucide="clipboard-list"></i>
+                {% if status %}{{ statuses.get(status, status) }} Suggestions{% else %}All My Suggestions{% endif %}
+            </h3>
+            <span class="o_mis_period_chip">{{ suggestions|length }} on record</span>
+        </div>
+        <table class="o_list_table">
+            <thead>
+                <tr class="o_list_header">
+                    <th>Reference</th>
+                    <th>Suggestion</th>
+                    <th>Area</th>
+                    <th>Sent</th>
+                    <th class="o_amount">Replies</th>
+                    <th>Status</th>
+                    <th class="o_action_col">Open</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in suggestions %}
+                <tr class="o_list_record o_row_link"
+                    data-href="{{ url_for('suggestions.detail', suggestion_id=s.id) }}">
+                    <td><code>{{ s.reference }}</code></td>
+                    <td><strong>{{ s.title }}</strong></td>
+                    <td>{{ s.area }}</td>
+                    <td>{{ s.created_at.strftime('%d %b %Y, %H:%M') if s.created_at else '-' }}</td>
+                    <td class="o_amount" data-sync="sug_{{ s.id }}_replies">{{ s.messages|length }}</td>
+                    <td>
+                        <span class="o_badge {{ {'NEW': 'o_badge_warning', 'IN_PROGRESS': 'o_badge_info',
+                            'COMPLETED': 'o_badge_success', 'REJECTED': 'o_badge_secondary'}[s.status] }}"
+                            data-sync="sug_{{ s.id }}_status">{{ s.status_label() }}</span>
+                    </td>
+                    <td class="o_action_col">
+                        <a href="{{ url_for('suggestions.detail', suggestion_id=s.id) }}"
+                            class="o_icon_btn o_icon_btn_view" title="Open this suggestion"
+                            aria-label="Open this suggestion"><i data-lucide="eye"></i></a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        <i data-lucide="lightbulb" style="display: block; margin: 0 auto 8px;"></i>
+                        {% if status %}
+                        No suggestions of yours are {{ statuses.get(status, status)|lower }}.
+                        {% else %}
+                        You have not sent any suggestions yet.
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .o_dashboard_topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+</style>
+{% endblock %}

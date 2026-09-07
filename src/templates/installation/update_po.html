@@ -1,0 +1,670 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-edit" style="color: var(--odoo-primary);"></i>
+        Update Installation - {{ po.po_number }}
+    </h1>
+    
+    <!-- PO Info Card -->
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 24px;">
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('installation.dashboard', search=po.po_number) }}" class="o_dashboard_card o_card_primary" style="text-decoration: none;">
+            <div class="o_card_header">PO Number</div>
+            <div class="o_card_value" style="font-size: 18px;">{{ po.po_number }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_primary">
+            <div class="o_card_header">PO Number</div>
+            <div class="o_card_value" style="font-size: 18px;">{{ po.po_number }}</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('installation.dashboard', search=po.owner_name) }}" class="o_dashboard_card o_card_info" style="text-decoration: none;">
+            <div class="o_card_header">Customer</div>
+            <div class="o_card_value" style="font-size: 18px;">{{ po.owner_name }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_info">
+            <div class="o_card_header">Customer</div>
+            <div class="o_card_value" style="font-size: 18px;">{{ po.owner_name }}</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('installation.dashboard', search=po.reg_no) }}" class="o_dashboard_card o_card_teal" style="text-decoration: none;">
+            <div class="o_card_header">Vehicle</div>
+            <div class="o_card_value" style="font-size: 18px;">{{ po.reg_no }}</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_teal">
+            <div class="o_card_header">Vehicle</div>
+            <div class="o_card_value" style="font-size: 18px;">{{ po.reg_no }}</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('installation.dashboard', status=po.status) }}" class="o_dashboard_card o_card_lavender" style="text-decoration: none;">
+            <div class="o_card_header">Current Status</div>
+            <div class="o_card_value" style="font-size: 18px;">
+                <span class="o_badge {% if po.status == 'COMPLETED' %}o_badge_success{% elif po.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}" style="font-size: 14px; padding: 6px 16px;">
+                    {{ po.status }}
+                </span>
+            </div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_lavender">
+            <div class="o_card_header">Current Status</div>
+            <div class="o_card_value" style="font-size: 18px;">
+                <span class="o_badge {% if po.status == 'COMPLETED' %}o_badge_success{% elif po.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}" style="font-size: 14px; padding: 6px 16px;">
+                    {{ po.status }}
+                </span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Installation Details</h2>
+            <p class="o_form_subtitle">Complete all installation fields before marking as COMPLETED</p>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="{{ url_for('installation.update_po', po_id=po.id) }}">
+                {{ form.hidden_tag() }}
+                {{ form.vehicle_availability_location(type="hidden") }}
+
+                {# ===== ORDER DETAILS - ADMINISTRATOR ONLY =====
+                   The particulars of the order itself, as Sales raised it.
+                   Rendered only for an Administrator: the installation team
+                   records what was fitted, not who the order is for. The
+                   route drops these fields for anyone else, so this block
+                   being absent is a convenience, not the control. #}
+                {% if is_admin %}
+                <h3 style="color: var(--odoo-primary); margin-top: 10px; margin-bottom: 6px;">
+                    <i class="fas fa-user-shield"></i> Order Details
+                </h3>
+                <p class="o_form_subtitle" style="margin: 0 0 15px;">
+                    Administrator only &mdash; every field on the order is editable here.
+                    Leave a field blank to keep what is already recorded.
+                </p>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.owner_name.label }}</label>
+                        {{ form.owner_name(class="o_field_widget", placeholder="Customer name") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.owner_contact.label }}</label>
+                        {{ form.owner_contact(class="o_field_widget", placeholder="Customer contact number") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.contact_person_driver.label }}</label>
+                        {{ form.contact_person_driver(class="o_field_widget", placeholder="Driver contact") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.reg_no.label }}</label>
+                        {{ form.reg_no(class="o_field_widget", placeholder="Vehicle registration number") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.sales_person_id.label }}</label>
+                        {{ form.sales_person_id(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.tested_by.label }}</label>
+                        {{ form.tested_by(class="o_field_widget", placeholder="Who tested the installation?") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.existing_customer_name.label }}</label>
+                        {{ form.existing_customer_name(class="o_field_widget", placeholder="Existing customer, if a transfer") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.existing_vehicle_number.label }}</label>
+                        {{ form.existing_vehicle_number(class="o_field_widget", placeholder="Existing vehicle number, if a transfer") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.rates.label }}</label>
+                        {{ form.rates(class="o_field_widget no-uppercase", type="number", step="0.01") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.amc.label }}</label>
+                        {{ form.amc(class="o_field_widget no-uppercase", type="number", step="0.01") }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Vehicle Details Section (Filled by Install Team) -->
+                <h3 style="color: var(--odoo-primary); margin-top: 10px; margin-bottom: 15px;">
+                    <i class="fas fa-car"></i> Vehicle Details
+                </h3>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.vehicle_make.label }}</label>
+                        {{ form.vehicle_make(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.vehicle_model.label }}</label>
+                        {{ form.vehicle_model(class="o_field_widget") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.vehicle_year.label }}</label>
+                        {{ form.vehicle_year(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.vehicle_color.label }}</label>
+                        {{ form.vehicle_color(class="o_field_widget") }}
+                    </div>
+                </div>
+                {# Transmission and capacity. SJ_MIS has columns for both and
+                   fills almost neither, so the installer standing at the
+                   vehicle is the one who can actually record them. #}
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.transmission.label }}</label>
+                        {{ form.transmission(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.power_cc.label }}</label>
+                        {{ form.power_cc(class="o_field_widget", placeholder="e.g. 1800") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.city.label }}</label>
+                        {{ form.city(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group"></div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.engine_number.label }}</label>
+                        {{ form.engine_number(class="o_field_widget", placeholder="Enter engine number") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.chassis_number.label }}</label>
+                        {{ form.chassis_number(class="o_field_widget", placeholder="Enter chassis number") }}
+                    </div>
+                </div>
+
+                <h3 style="color: var(--odoo-primary); margin-top: 20px; margin-bottom: 15px;">
+                    <i class="fas fa-tools"></i> Installation Technical Details
+                </h3>
+                <!-- Row 1: Scheduled Date & Technician -->
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.scheduled_date.label }}</label>
+                        {{ form.scheduled_date(class="o_field_widget", type="date") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.technician_assigned.label }}</label>
+                        <select class="o_field_widget" id="technician-select" name="technician_assigned">
+                            <option value="">Select Technician</option>
+                            {% for tech in technicians %}
+                            <option value="{{ tech.name }}" {% if po.technician_assigned == tech.name %}selected{% endif %}>
+                                {{ tech.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">Select technician to auto-fetch their current location</small>
+                    </div>
+                </div>
+                
+                <!-- Row 2: Device IMEI & SIM -->
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.imei_no.label }}</label>
+                        {{ form.imei_no(class="o_field_widget", id="imei-input", list="tech-device-list", placeholder="Enter device IMEI number") }}
+                        <datalist id="tech-device-list"></datalist>
+                        <small id="tech-inventory-hint" style="color: var(--odoo-text-light); font-size: 10px;">Select a technician above to see their assigned stock</small>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.sim_no.label }}</label>
+                        {{ form.sim_no(class="o_field_widget", id="sim-input", list="tech-sim-list", placeholder="Enter SIM number") }}
+                        <datalist id="tech-sim-list"></datalist>
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">SIM of the device being installed</small>
+                    </div>
+                </div>
+                
+                <!-- Row 3: Device Type & SIM Network Dropdown -->
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.device_type.label }}</label>
+                        {{ form.device_type(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.sim_network.label }}</label>
+                        {{ form.sim_network(class="o_field_widget") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">Mobile operator network of installed SIM</small>
+                    </div>
+                </div>
+
+                <!-- Row 3.5: Device Location & Accessories -->
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.device_location.label }}</label>
+                        {{ form.device_location(class="o_field_widget", placeholder="e.g., Dashboard, Under seat, etc.") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">Where the device is installed in the vehicle</small>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.accessories_installed.label }}</label>
+                        {{ form.accessories_installed(class="o_field_widget", placeholder="e.g., Kill switch, panic button, etc.") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">List any optional add-ons or relays wired during install</small>
+                    </div>
+                </div>
+                
+                <!-- Row 4: Fuel & Arranged By -->
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.fuel.label }}</label>
+                        {{ form.fuel(class="o_field_widget", placeholder="Fuel amount (PKR)") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">Fuel compensated by customer</small>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.arranged_by_sales_person.label }}</label>
+                        {{ form.arranged_by_sales_person(class="o_field_widget", placeholder="Who arranged this?") }}
+                    </div>
+                </div>
+                
+                <!-- Row 5: Status & Tested By -->
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.status.label }}</label>
+                        {{ form.status(class="o_field_widget") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px;">
+                            ⚠️ Only mark as COMPLETED after all installation work is done
+                        </small>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">Tested By</label>
+                        <input type="text" class="o_field_widget" value="{{ current_user.username.upper() }}" readonly>
+                    </div>
+                </div>
+                
+                <!-- Row 6: Remarks -->
+                <div class="o_form_group">
+                    <div class="o_field_group" style="grid-column: span 2;">
+                        <label class="o_field_label">{{ form.remarks.label }}</label>
+                        {{ form.remarks(class="o_field_widget", rows="4", placeholder="Enter any installation remarks, issues, or notes...") }}
+                    </div>
+                </div>
+                
+                <!-- Technician's Current Location -->
+                <div style="margin-top: 20px; padding: 15px; background: var(--odoo-primary-soft); border-radius: 10px; border-left: 4px solid var(--odoo-primary);">
+                    <h4 style="color: var(--odoo-primary-dark); margin-bottom: 10px;">
+                        <i class="fas fa-map-marker-alt" style="color: var(--odoo-primary);"></i> Technician's Current Location
+                    </h4>
+                    <p style="color: var(--odoo-text-light); font-size: 12px; margin-bottom: 15px;">
+                        Auto-fetches from the technician's bike tracker when a technician is selected.
+                        Click "Save Location" to update the technician's home coordinates.
+                    </p>
+                    
+                    <div id="technician-location-status" style="margin-bottom: 15px; padding: 10px; background: var(--odoo-white); border-radius: 8px;">
+                        <div id="location-loading" style="display: none;">
+                            <i class="fas fa-spinner fa-spin"></i> Fetching technician location...
+                        </div>
+                        <div id="location-result" style="display: none;"></div>
+                        <div id="no-location-message" style="display: none;">
+                            <div style="background: #fff3cd; padding: 12px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                                <strong style="color: #856404;">⚠️ Technician's Device Not Reporting</strong>
+                                <p style="margin: 5px 0 0 0; color: #856404; font-size: 13px;">
+                                    The technician's bike device is not reporting GPS location.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="o_form_group">
+                        <div class="o_field_group">
+                            <label class="o_field_label">Current Location</label>
+                            <div class="o_field_widget" style="background: var(--odoo-secondary);" id="current-address-display">
+                                {{ po.vehicle_availability_location or 'Not specified' }}
+                            </div>
+                        </div>
+                        <div class="o_field_group">
+                            <label class="o_field_label">City</label>
+                            <div class="o_field_widget" style="background: var(--odoo-secondary);">
+                                {{ po.city or 'Not specified' }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Manual Address Entry -->
+                    <div class="o_form_group" style="margin-top: 10px; border-top: 1px solid var(--odoo-border); padding-top: 15px;">
+                        <div class="o_field_group" style="grid-column: span 2;">
+                            <label class="o_field_label">Manual Installation Address</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" class="o_field_widget" id="manual-address" placeholder="Enter the installation site address..." style="flex: 1;">
+                                <button type="button" class="o_button o_button_success o_button_sm" onclick="updateManualAddress()">
+                                    <i class="fas fa-check"></i> Set Address
+                                </button>
+                            </div>
+                            <small style="color: var(--odoo-text-light); font-size: 10px; display: block; margin-top: 4px;">
+                                Enter the installation site address manually if GPS is not available.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="o_action_bar">
+                    <a href="{{ url_for('installation.dashboard') }}" class="o_button o_button_secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                    <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="Update Installation" aria-label="Update Installation">
+                        <i class="fas fa-floppy-disk"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Summary Section -->
+    <div class="o_form_view" style="margin-top: 20px;">
+        <div class="o_form_header" style="background: var(--odoo-primary-soft);">
+            <h2 class="o_form_title">PO Summary</h2>
+        </div>
+        <div class="o_form_body">
+            <div class="o_form_group">
+                <div class="o_field_group">
+                    <label class="o_field_label">Customer</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.owner_name }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Contact</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.owner_contact }}</div>
+                </div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group">
+                    <label class="o_field_label">Vehicle</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.vehicle_make }} {{ po.vehicle_model }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Registration</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.reg_no }}</div>
+                </div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group">
+                    <label class="o_field_label">Engine</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.engine_number }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">Chassis</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.chassis_number }}</div>
+                </div>
+            </div>
+            <div class="o_form_group">
+                <div class="o_field_group">
+                    <label class="o_field_label">Sales Person</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.sales_person.name if po.sales_person else 'N/A' }}</div>
+                </div>
+                <div class="o_field_group">
+                    <label class="o_field_label">City</label>
+                    <div class="o_field_widget" style="background: var(--odoo-secondary);">{{ po.city or 'N/A' }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusField = document.querySelector('select[name="status"]');
+        if (statusField) {
+            statusField.addEventListener('change', function() {
+                if (this.value === 'COMPLETED') {
+                    if (!confirm('⚠️ Are you sure you want to mark this PO as COMPLETED?\n\nThis will send a completion email to the team.')) {
+                        this.value = '{{ po.status }}';
+                    }
+                }
+            });
+        }
+        
+        // Auto-fetch technician location when technician is selected
+        const technicianSelect = document.getElementById('technician-select');
+        if (technicianSelect) {
+            technicianSelect.addEventListener('change', function() {
+                if (this.value) {
+                    fetchTechnicianLocation();
+                }
+                fetchTechnicianInventory();
+            });
+        }
+    });
+
+    function fetchTechnicianInventory() {
+        const technicianName = document.getElementById('technician-select').value;
+        const deviceList = document.getElementById('tech-device-list');
+        const simList = document.getElementById('tech-sim-list');
+        const hint = document.getElementById('tech-inventory-hint');
+        deviceList.innerHTML = '';
+        simList.innerHTML = '';
+        if (!technicianName) {
+            hint.innerText = 'Select a technician above to see their assigned stock';
+            return;
+        }
+        fetch(`/inventory/api/technician-devices/${encodeURIComponent(technicianName)}`)
+            .then(response => response.json())
+            .then(data => {
+                const devices = data.devices || [];
+                if (devices.length === 0) {
+                    hint.innerText = 'No devices currently assigned to this technician in Inventory';
+                    return;
+                }
+                devices.forEach(function(d) {
+                    const opt = document.createElement('option');
+                    opt.value = d.imei;
+                    opt.label = d.device_name ? (d.imei + ' - ' + d.device_name) : d.imei;
+                    deviceList.appendChild(opt);
+                    if (d.sim_number) {
+                        const simOpt = document.createElement('option');
+                        simOpt.value = d.sim_number;
+                        simList.appendChild(simOpt);
+                    }
+                });
+                hint.innerText = devices.length + ' device(s) assigned to this technician - start typing to see suggestions';
+            })
+            .catch(err => console.log('Tech inventory error:', err));
+    }
+
+    function fetchTechnicianLocation() {
+        const technicianName = document.getElementById('technician-select').value;
+        const loadingDiv = document.getElementById('location-loading');
+        const resultDiv = document.getElementById('location-result');
+        const noLocationDiv = document.getElementById('no-location-message');
+        
+        if (!technicianName) {
+            alert('Please select a technician first.');
+            return;
+        }
+        
+        loadingDiv.style.display = 'block';
+        resultDiv.style.display = 'none';
+        noLocationDiv.style.display = 'none';
+        
+        fetch(`/installation/get-technician-location/${encodeURIComponent(technicianName)}`)
+            .then(response => response.json())
+            .then(data => {
+                loadingDiv.style.display = 'none';
+                
+                if (data.success && data.is_reporting) {
+                    resultDiv.style.display = 'block';
+                    const loc = data.location;
+                    let html = '<div style="background: #d4edda; padding: 12px; border-radius: 8px; border-left: 4px solid #28a745;">';
+                    html += '<strong style="color: #155724;">✅ Technician is Online</strong>';
+                    html += `<p style="margin: 5px 0 0 0; color: #155724; font-size: 13px;">`;
+                    html += `📍 ${loc.address || 'Address not available'}<br>`;
+                    html += `📌 Lat: ${loc.lat || 'N/A'}, Lng: ${loc.lng || 'N/A'}<br>`;
+                    if (loc.speed) html += `🚗 Speed: ${loc.speed} km/h<br>`;
+                    if (loc.last_updated) html += `🕐 Last Updated: ${new Date(loc.last_updated).toLocaleString()}`;
+                    html += '</p>';
+                    
+                    // Add Save button
+                    html += `
+                        <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <button type="button" class="o_button o_button_success o_button_sm" 
+                                    id="save-location-btn"
+                                    onclick="saveTechnicianLocation('${loc.lat || ''}', '${loc.lng || ''}', '${(loc.address || '').replace(/'/g, "\\'")}')">
+                                <i class="fas fa-save"></i> Save Location to Technician Profile
+                            </button>
+                            <span style="font-size: 11px; color: #155724;">
+                                <i class="fas fa-info-circle"></i> Updates Home Latitude & Longitude
+                            </span>
+                        </div>
+                    `;
+                    
+                    // Add saved location display area
+                    html += `<div id="saved-location-display" style="margin-top: 10px;"></div>`;
+                    html += '</div>';
+                    
+                    resultDiv.innerHTML = html;
+                    noLocationDiv.style.display = 'none';
+                    
+                    // Auto-fill manual address field
+                    if (loc.address) {
+                        document.getElementById('manual-address').value = loc.address;
+                        document.getElementById('current-address-display').textContent = loc.address;
+                    }
+                } else if (data.success && !data.is_reporting) {
+                    noLocationDiv.style.display = 'block';
+                    resultDiv.innerHTML = '';
+                } else {
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `
+                        <div style="background: #f8d7da; padding: 12px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                            <strong style="color: #721c24;">❌ ${data.error || 'No bike or IMEI assigned to this technician'}</strong>
+                            <p style="margin: 5px 0 0 0; color: #721c24; font-size: 13px;">
+                                Please assign a bike with IMEI to this technician first.
+                            </p>
+                        </div>
+                    `;
+                    noLocationDiv.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                loadingDiv.style.display = 'none';
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `
+                    <div style="background: #f8d7da; padding: 12px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                        <strong style="color: #721c24;">❌ Error: ${error.message}</strong>
+                    </div>
+                `;
+            });
+    }
+    
+    function saveTechnicianLocation(lat, lng, address) {
+        const technicianName = document.getElementById('technician-select').value;
+        const saveBtn = document.getElementById('save-location-btn');
+        
+        if (!technicianName) {
+            flash('❌ No technician selected', 'danger');
+            return;
+        }
+        
+        if (!lat || !lng) {
+            flash('❌ No location data to save. Please fetch location first.', 'danger');
+            return;
+        }
+        
+        // Show saving indicator
+        if (saveBtn) {
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            saveBtn.disabled = true;
+        }
+        
+        fetch('/installation/update-technician-location', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                technician_name: technicianName,
+                lat: lat,
+                lng: lng,
+                address: address || ''
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (saveBtn) {
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Location to Technician Profile';
+                saveBtn.disabled = false;
+            }
+            
+            if (data.success) {
+                flash('✅ Technician location saved to database!', 'success');
+                
+                // Update the display
+                const displayDiv = document.getElementById('saved-location-display');
+                if (displayDiv) {
+                    displayDiv.innerHTML = `
+                        <div style="background: #d4edda; padding: 10px; border-radius: 8px; border-left: 4px solid #28a745;">
+                            <strong style="color: #155724;">✅ Location Saved Successfully!</strong>
+                            <p style="margin: 5px 0 0 0; color: #155724; font-size: 13px;">
+                                📍 ${address || 'Address updated'}<br>
+                                🎯 Lat: ${lat}, Lng: ${lng}
+                            </p>
+                        </div>
+                    `;
+                }
+            } else {
+                flash('❌ Failed to save location: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            if (saveBtn) {
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Location to Technician Profile';
+                saveBtn.disabled = false;
+            }
+            flash('❌ Error saving location: ' + error.message, 'danger');
+        });
+    }
+    
+    function updateManualAddress() {
+        const manualAddress = document.getElementById('manual-address').value;
+        if (!manualAddress) {
+            alert('Please enter an address first.');
+            return;
+        }
+        
+        // Find the address field in the form
+        const addressField = document.querySelector('[name="vehicle_availability_location"]');
+        if (addressField) {
+            addressField.value = manualAddress;
+            document.getElementById('current-address-display').textContent = manualAddress;
+            flash('✅ Installation address updated successfully!', 'success');
+        } else {
+            // If no field, just show success
+            flash('✅ Address updated in UI!', 'success');
+        }
+    }
+    
+    function flash(message, type) {
+        const flashDiv = document.createElement('div');
+        flashDiv.className = `o_alert o_alert_${type}`;
+        const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
+        flashDiv.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
+        const mainContent = document.querySelector('.o_main_content') || document.querySelector('.o_container_fluid');
+        if (mainContent) {
+            mainContent.prepend(flashDiv);
+        } else {
+            document.body.prepend(flashDiv);
+        }
+        setTimeout(() => { 
+            flashDiv.style.transition = 'opacity 0.5s';
+            flashDiv.style.opacity = '0';
+            setTimeout(() => { flashDiv.remove(); }, 500);
+        }, 5000);
+    }
+</script>
+{% include '_make_model_filter.html' %}
+{% endblock %}

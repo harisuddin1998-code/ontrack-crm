@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div class="o_reports_head">
+        <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+            <i data-lucide="file-bar-chart" style="color: var(--odoo-primary);"></i>
+            MIS Operations &amp; Sales Reports
+        </h1>
+        <p class="o_reports_sub">
+            Pick a report, set the period it should cover, then run or download it.
+            Every report opens on the current month unless you change the dates on its card.
+        </p>
+    </div>
+
+    {# One card per report. The date inputs live inside the card rather than
+       in a page-wide toolbar so the range you set is unambiguously the range
+       that report will run for - a shared toolbar leaves you guessing which
+       of the reports below it still applies to. #}
+    <div class="o_reports_grid">
+        {% for report in reports %}
+        <form method="get" class="o_report_card"
+            action="{{ report['view_url'] or report['export_url'] }}">
+            <div class="o_report_card_top">
+                <span class="o_report_icon"><i data-lucide="{{ report['icon'] }}"></i></span>
+                <div class="o_report_naming">
+                    <h3 class="o_report_name">{{ report['name'] }}</h3>
+                    <p class="o_report_summary">{{ report['summary'] }}</p>
+                </div>
+            </div>
+
+            <div class="o_report_period">
+                <span class="o_report_period_label">
+                    <i data-lucide="calendar-range"></i> Reporting period
+                </span>
+                <div class="o_report_dates">
+                    <label class="o_report_date">
+                        <span>From</span>
+                        <input type="date" name="from" value="{{ date_range.from_str }}"
+                            class="o_field_widget no-uppercase">
+                    </label>
+                    <label class="o_report_date">
+                        <span>To</span>
+                        <input type="date" name="to" value="{{ date_range.to_str }}"
+                            class="o_field_widget no-uppercase">
+                    </label>
+                </div>
+            </div>
+
+            <div class="o_report_actions">
+                {% if report['view_url'] %}
+                <button type="submit" class="o_button">
+                    <i data-lucide="play"></i> Run Report
+                </button>
+                {% endif %}
+                {% if report['export_url'] %}
+                {# formaction sends the same date inputs to the exporter, so a
+                   download can never cover a different period from the run.
+                   Where downloading is the only thing a report does, it is the
+                   primary action rather than the quiet alternative to one. #}
+                <button type="submit"
+                    class="o_button{% if report['view_url'] %} o_button_secondary{% endif %}"
+                    formaction="{{ report['export_url'] }}">
+                    <i data-lucide="file-down"></i> Download Excel
+                </button>
+                {% endif %}
+            </div>
+        </form>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .o_reports_head {
+        margin-bottom: 18px;
+    }
+
+    .o_reports_sub {
+        color: var(--odoo-text-light);
+        font-size: 12px;
+        margin: 6px 0 0;
+        max-width: 76ch;
+    }
+
+    .o_reports_grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 18px;
+    }
+
+    /* Cards sit in a grid row, so they stretch to the tallest in the row and
+       the actions are pushed to the bottom - the buttons line up across the
+       row however long a summary runs. */
+    .o_report_card {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        background: var(--odoo-white);
+        border: 1px solid var(--odoo-border);
+        border-radius: 14px;
+        padding: 18px;
+        box-shadow: var(--card-shadow);
+        transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .o_report_card:hover {
+        border-color: var(--odoo-primary-light);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09);
+    }
+
+    .o_report_card_top {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .o_report_icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--odoo-primary-soft);
+        color: var(--odoo-primary-dark);
+    }
+
+    .o_report_icon i {
+        width: 19px;
+        height: 19px;
+    }
+
+    .o_report_naming {
+        min-width: 0;
+    }
+
+    .o_report_name {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--odoo-text);
+        line-height: 1.3;
+    }
+
+    .o_report_summary {
+        margin: 5px 0 0;
+        font-size: 11.5px;
+        line-height: 1.55;
+        color: var(--odoo-text-light);
+    }
+
+    .o_report_period {
+        margin-top: auto;
+        padding-top: 12px;
+        border-top: 1px dashed var(--odoo-border);
+    }
+
+    .o_report_period_label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: var(--odoo-text-muted);
+        margin-bottom: 8px;
+    }
+
+    .o_report_period_label i {
+        width: 13px;
+        height: 13px;
+    }
+
+    .o_report_dates {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .o_report_date {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .o_report_date span {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--odoo-text-light);
+    }
+
+    /* Date inputs are content-sized by default and will happily push a card
+       wider than its grid track; the explicit min-width stops that. */
+    .o_report_date input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .o_report_actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .o_report_actions .o_button {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    @media (max-width: 560px) {
+        .o_reports_grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}

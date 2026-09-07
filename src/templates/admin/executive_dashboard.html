@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div class="o_dashboard_topbar">
+        <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+            <i data-lucide="line-chart" style="color: var(--odoo-primary);"></i> Executive Operations Dashboard
+        </h1>
+
+        {% set sync_endpoint = url_for('admin.api_dashboard_stats', period=period) %}
+        {% include '_live_sync.html' %}
+
+        {% include 'admin/_timeframe.html' %}
+    </div>
+
+    {# The Administration board, in full. The numbers (one backend helper),
+       the formatting (one more), the live cards (one shared template), the
+       period sections (one more) and the refresh (one shared endpoint) are
+       all shared with /admin/dashboard, so the two cannot drift apart in
+       any of them. #}
+    {% if admin_stats and admin_stats.pos %}
+    {% include 'admin/_dashboard_kpi_cards.html' %}
+    {% endif %}
+
+    {% include 'admin/_period_sections.html' %}
+</div>
+{% endblock %}

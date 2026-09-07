@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-box" style="color: var(--odoo-primary);"></i>
+        New Retained Activity
+    </h1>
+    
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Device Removal & Retention</h2>
+            <p class="o_form_subtitle">Record device removal and retention details</p>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="{{ url_for('removal.retained_new') }}">
+                {{ form.hidden_tag() }}
+                
+                <!-- Vehicle Information -->
+                <h4 style="margin-bottom: 15px; color: var(--odoo-primary-dark); border-bottom: 2px solid var(--odoo-primary-soft); padding-bottom: 8px;">
+                    <i class="fas fa-car" style="color: var(--odoo-primary);"></i> Vehicle Information
+                </h4>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.registration_no.label }}</label>
+                        {{ form.registration_no(class="o_field_widget", placeholder="Enter registration number") }}
+                        {% if form.registration_no.errors %}
+                            <small style="color: #ff6b6b; font-size: 0.75rem; margin-top: 5px; display: block;">
+                                {% for error in form.registration_no.errors %}{{ error }}{% endfor %}
+                            </small>
+                        {% endif %}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.make.label }}</label>
+                        {{ form.make(class="o_field_widget", placeholder="Enter manufacturer") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.model.label }}</label>
+                        {{ form.model(class="o_field_widget", placeholder="Enter brand") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.year.label }}</label>
+                        {{ form.year(class="o_field_widget", placeholder="Enter year / model") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.color.label }}</label>
+                        {{ form.color(class="o_field_widget", placeholder="Enter color") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.chassis_no.label }}</label>
+                        {{ form.chassis_no(class="o_field_widget", placeholder="Enter chassis number") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.engine_no.label }}</label>
+                        {{ form.engine_no(class="o_field_widget", placeholder="Enter engine number") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.customer_name.label }}</label>
+                        {{ form.customer_name(class="o_field_widget", placeholder="Enter customer name") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.customer_contact.label }}</label>
+                        {{ form.customer_contact(class="o_field_widget", placeholder="Enter customer contact") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.imei_no.label }}</label>
+                        {{ form.imei_no(class="o_field_widget", placeholder="Enter IMEI number") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.sim_no.label }}</label>
+                        {{ form.sim_no(class="o_field_widget", placeholder="Enter SIM number") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.device_location.label }}</label>
+                        {{ form.device_location(class="o_field_widget", placeholder="Enter device location") }}
+                    </div>
+                </div>
+                
+                <!-- Removal Details -->
+                <h4 style="margin: 25px 0 15px; color: var(--odoo-primary-dark); border-bottom: 2px solid var(--odoo-primary-soft); padding-bottom: 8px;">
+                    <i class="fas fa-trash-alt" style="color: var(--odoo-primary);"></i> Removal Details
+                </h4>
+                <div class="o_form_group">
+                    <div class="o_field_group" style="grid-column: span 2;">
+                        <label class="o_field_label">{{ form.removal_reason.label }}</label>
+                        {{ form.removal_reason(class="o_field_widget", rows="3", placeholder="Enter reason for removal") }}
+                        {% if form.removal_reason.errors %}
+                            <small style="color: #ff6b6b; font-size: 0.75rem; margin-top: 5px; display: block;">
+                                {% for error in form.removal_reason.errors %}{{ error }}{% endfor %}
+                            </small>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.removal_date.label }}</label>
+                        {{ form.removal_date(class="o_field_widget", type="date") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.retained_by.label }}</label>
+                        {{ form.retained_by(class="o_field_widget", placeholder="Who retained the device?") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.storage_location.label }}</label>
+                        {{ form.storage_location(class="o_field_widget", placeholder="Where is the device stored?") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.device_condition.label }}</label>
+                        {{ form.device_condition(class="o_field_widget", placeholder="Device condition") }}
+                    </div>
+                </div>
+                
+                <!-- Device Return -->
+                <h4 style="margin: 25px 0 15px; color: var(--odoo-primary-dark); border-bottom: 2px solid var(--odoo-primary-soft); padding-bottom: 8px;">
+                    <i class="fas fa-undo-alt" style="color: var(--odoo-primary);"></i> Device Return
+                </h4>
+                <div class="o_form_group">
+                    <div class="o_field_group" style="display: flex; align-items: center; gap: 10px;">
+                        {{ form.device_returned() }}
+                        <label class="o_field_label" style="margin: 0; font-weight: 400; cursor: pointer;">{{ form.device_returned.label }}</label>
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.return_date.label }}</label>
+                        {{ form.return_date(class="o_field_widget", type="date") }}
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="o_action_bar">
+                    <a href="{{ url_for('removal.retained_dashboard') }}" class="o_button o_button_secondary">
+                        <i class="fas fa-arrow-left"></i> Cancel
+                    </a>
+                    <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="Create Retained Activity" aria-label="Create Retained Activity">
+                        <i class="fas fa-floppy-disk"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Toggle return date visibility based on device_returned checkbox
+    document.addEventListener('DOMContentLoaded', function() {
+        const returnedCheckbox = document.getElementById('device_returned');
+        const returnDateField = document.querySelector('input[name="return_date"]');
+        
+        if (returnedCheckbox && returnDateField) {
+            function toggleReturnDate() {
+                const parentGroup = returnDateField.closest('.o_field_group');
+                if (parentGroup) {
+                    if (returnedCheckbox.checked) {
+                        parentGroup.style.display = 'block';
+                    } else {
+                        parentGroup.style.display = 'none';
+                    }
+                }
+            }
+            
+            // Initial state
+            toggleReturnDate();
+            
+            // On change
+            returnedCheckbox.addEventListener('change', toggleReturnDate);
+        }
+    });
+</script>
+{% endblock %}

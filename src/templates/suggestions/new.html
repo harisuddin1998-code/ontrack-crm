@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i data-lucide="lightbulb" style="color: var(--odoo-primary);"></i> New Suggestion
+    </h1>
+
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Tell the Administrator</h2>
+            <p class="o_form_subtitle">
+                A fault, a missing field, a screen that slows you down &mdash; anything about the
+                software itself. You will be able to follow it, and the Administrator can reply
+                to you on the same ticket.
+            </p>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="{{ url_for('suggestions.new') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label" for="title">What is it? <span
+                                style="color: var(--odoo-danger);">*</span></label>
+                        <input type="text" id="title" name="title" class="o_field_widget" maxlength="200"
+                            required value="{{ title_value }}"
+                            placeholder="One line, e.g. Cannot search POs by driver name">
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label" for="area">Where in the system?</label>
+                        <select id="area" name="area" class="o_field_widget">
+                            {% for option in areas %}
+                            <option value="{{ option }}" {% if area_value==option %}selected{% endif %}>
+                                {{ option }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="o_form_group">
+                    <div class="o_field_group" style="flex: 1 1 100%;">
+                        <label class="o_field_label" for="description">Describe it <span
+                                style="color: var(--odoo-danger);">*</span></label>
+                        <textarea id="description" name="description" class="o_field_widget" rows="6" required
+                            placeholder="What happens now, what you expected instead, and which screen you were on.">{{ description_value }}</textarea>
+                    </div>
+                </div>
+
+                <div class="o_form_actions" style="display: flex; gap: 10px; margin-top: 16px;">
+                    <button type="submit" class="o_button">
+                        <i data-lucide="send"></i> Send Suggestion
+                    </button>
+                    <a href="{{ url_for('suggestions.my_suggestions') }}" class="o_button o_button_secondary">
+                        <i data-lucide="x"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

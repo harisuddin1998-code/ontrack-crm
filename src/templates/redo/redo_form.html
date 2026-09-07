@@ -1,0 +1,630 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .lucide-icon { width: 16px; height: 16px; display: inline-block; vertical-align: text-bottom; }
+    .form-card { background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.03); margin-bottom: 20px; }
+    .form-card-header { padding: 12px 20px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e2e8f0; }
+    .form-card-body { padding: 20px; }
+    .field-label { font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 4px; display: block; }
+    .field-input, .field-select, .field-textarea { width: 100%; max-width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; color: #0f172a; transition: all 0.15s ease; }
+    #deviceChangeAmountHint { overflow-wrap: break-word; }
+    .field-input:focus, .field-select:focus, .field-textarea:focus { border-color: #6B8DD6; background: #ffffff; outline: none; box-shadow: 0 0 0 3px rgba(107,141,214,0.15); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+    .tech-info-badge { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-top: 6px; display: none; }
+    .last-service-badge { background: #fdf2f8; color: #9d174d; border: 1px solid #fbcfe8; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 15px; display: none; }
+    @media (max-width: 992px) { .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 576px) { .grid-3, .grid-4, .grid-2 { grid-template-columns: 1fr; } }
+</style>
+
+<div class="o_container_fluid" style="max-width: 1200px; margin: 0 auto;">
+    <!-- Page Title & Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="wrench" class="lucide-icon" style="width: 26px; height: 26px; color: var(--odoo-primary);"></i> 
+                REDO Activity Entry &amp; Service Workflows
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Manage REDO, Device Replacement, and Un-installation service entries
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <span class="o_badge" style="background: #fdf2f8; color: #be185d; border: 1px solid #fbcfe8; font-size: 14px; font-weight: 700; padding: 8px 16px;">
+                Auto ID: <span id="autoRedoId">{{ auto_redo_number or 'REDO-NEW' }}</span>
+            </span>
+            <a href="{{ url_for('redo.non_reporting_dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left" class="lucide-icon"></i> Not Reporting Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Previously Installed By / Last REDO Activity Alert Banner -->
+    <div id="lastServiceBanner" class="last-service-badge">
+        <i data-lucide="history" class="lucide-icon" style="color: #be185d;"></i>
+        Previously Installed / Last Serviced By: <span id="lastServiceText" style="color: #be185d;">-</span>
+    </div>
+
+    <!-- Main REDO Activity Form -->
+    <form method="POST" action="{{ url_for('redo.new') }}" id="redoForm">
+        {{ form.csrf_token if form.csrf_token }}
+
+        <!-- SECTION 1: ACTIVITY DETAILS -->
+        <div class="form-card">
+            <div class="form-card-header" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); color: #0f172a;">
+                <i data-lucide="file-text" class="lucide-icon" style="color: var(--odoo-primary);"></i> 1. Activity Details
+            </div>
+            <div class="form-card-body">
+                <div class="grid-2">
+                    <div>
+                        <label class="field-label">Activity Type *</label>
+                        {{ form.activity_type(class="field-select") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Scheduled Date</label>
+                        {{ form.scheduled_date(class="field-input", type="date") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 2: CUSTOMER INFORMATION -->
+        <div class="form-card">
+            <div class="form-card-header" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #1e40af;">
+                <i data-lucide="user" class="lucide-icon" style="color: #2563eb;"></i> 2. Customer Information
+            </div>
+            <div class="form-card-body">
+                <div class="grid-3">
+                    <div>
+                        <label class="field-label">Customer Name *</label>
+                        {{ form.customer_name(class="field-input", id="custNameInput", placeholder="Full Client / Owner Name") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Contact Number</label>
+                        {{ form.customer_contact(class="field-input", id="custContactInput", placeholder="Auto-populated contact") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Sales Person (From Purchase Order)</label>
+                        {{ form.sale_person(class="field-input", id="salePersonInput", readonly=true, style="background: #e2e8f0; font-weight: 700; color: #1e293b;", placeholder="Pulled from the vehicle's PO") }}
+                        <div id="poLinkBadge" class="tech-info-badge" style="display: none;">
+                            <i data-lucide="file-spreadsheet" class="lucide-icon"></i>
+                            Purchase Order: <a id="poLinkAnchor" href="#" target="_blank" style="color: #1e40af; font-weight: 700;">-</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid-2" style="margin-top: 15px;">
+                    <div>
+                        <label class="field-label">Arranged By (Auto-Populated)</label>
+                        {{ form.arranged_by(class="field-input", readonly=true, style="background: #e2e8f0; font-weight: 700; color: #1e293b;") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Testing By (Auto-Populated)</label>
+                        {{ form.tested_by(class="field-input", readonly=true, style="background: #e2e8f0; font-weight: 700; color: #1e293b;") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 3: VEHICLE INFORMATION -->
+        <div class="form-card">
+            <div class="form-card-header" style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); color: #15803d;">
+                <i data-lucide="truck" class="lucide-icon" style="color: #16a34a;"></i> 3. Vehicle Information
+            </div>
+            <div class="form-card-body">
+                <div class="grid-4" style="margin-bottom: 15px;">
+                    <div>
+                        <label class="field-label">Reg. No. (Auto-Fetch Data) *</label>
+                        {{ form.registration_no(class="field-input", id="regNoInput", placeholder="e.g. LEB-2021-9981", onblur="fetchVehicleData()", onchange="fetchVehicleData()") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Make (Auto-Pulled)</label>
+                        {{ form.make(class="field-input", id="makeSelect", placeholder="Not on file - enter manually") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Model (Auto-Pulled)</label>
+                        {{ form.model(class="field-input", id="modelSelect", placeholder="Not on file - enter manually") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Year (Auto-Pulled)</label>
+                        {{ form.year(class="field-input", id="yearSelect", placeholder="Not on file - enter manually") }}
+                    </div>
+                </div>
+                <div class="grid-3">
+                    <div>
+                        <label class="field-label">Color (Auto-Pulled)</label>
+                        {{ form.color(class="field-input", id="colorSelect", placeholder="Not on file - enter manually") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Chassis No. (Auto-Pulled)</label>
+                        {{ form.chassis_no(class="field-input", id="chassisInput", placeholder="Not on file - enter manually") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Engine No. (Auto-Pulled)</label>
+                        {{ form.engine_no(class="field-input", id="engineInput", placeholder="Not on file - enter manually") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 4: DEVICE INFORMATION -->
+        <div class="form-card">
+            <div class="form-card-header" style="background: linear-gradient(135deg, #faf5ff, #f3e8ff); color: #6b21a8;">
+                <i data-lucide="cpu" class="lucide-icon" style="color: #9333ea;"></i> 4. Device Information
+            </div>
+            <div class="form-card-body">
+                <div class="grid-4" style="margin-bottom: 15px;">
+                    <div>
+                        <label class="field-label">IMEI No.</label>
+                        {{ form.imei_no(class="field-input", id="imeiInput", placeholder="86229205...") }}
+                    </div>
+                    <div>
+                        <label class="field-label">SIM No.</label>
+                        {{ form.sim_no(class="field-input", id="simInput", placeholder="03001234567") }}
+                    </div>
+                    <div>
+                        <label class="field-label">New Device (if replacing)</label>
+                        {{ form.new_device(class="field-input", id="newDeviceInput", list="techDeviceList", placeholder="New IMEI - device change only", oninput="snapshotOldDevice()") }}
+                        <datalist id="techDeviceList"></datalist>
+                        <small id="techInventoryHint" style="color: #94a3b8; font-size: 11px;">Select a technician above to see their assigned stock</small>
+                    </div>
+                    <div>
+                        <label class="field-label">New SIM (if replacing)</label>
+                        {{ form.new_sim(class="field-input", id="newSimInput", list="techSimList", placeholder="New SIM - device change only", oninput="snapshotOldDevice()") }}
+                        <datalist id="techSimList"></datalist>
+                    </div>
+                </div>
+                <div class="grid-4">
+                    <div>
+                        <label class="field-label">Device Type</label>
+                        {{ form.device_type(class="field-select", id="deviceTypeSelect") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Device Location</label>
+                        {{ form.device_location(class="field-input", id="devLocInput", placeholder="Dashboard, Pillar, Seat, etc.") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Old IMEI No. (Auto-Recorded)</label>
+                        {{ form.old_imei_no(class="field-input", id="oldImeiInput", readonly=true, style="background: #e2e8f0; font-weight: 700; color: #1e293b;", placeholder="Captured automatically on device change") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Old SIM No. (Auto-Recorded)</label>
+                        {{ form.old_sim_no(class="field-input", id="oldSimInput", readonly=true, style="background: #e2e8f0; font-weight: 700; color: #1e293b;", placeholder="Captured automatically on device change") }}
+                    </div>
+                </div>
+                <div class="grid-2" style="margin-top: 15px;">
+                    <div>
+                        <label class="field-label">Device Change Reason</label>
+                        {{ form.device_change_reason(class="field-select", id="deviceChangeReasonSelect") }}
+                        <small style="display: block; margin-top: 4px; overflow-wrap: break-word; color: #94a3b8; font-size: 11px;">Required whenever New Device / New SIM above is filled in</small>
+                        <small id="deviceChangeAmountHint" style="display: block; margin-top: 4px; font-weight: 700; color: #b5502e;"></small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 5: TECHNICAL & OPERATIONS DETAILS -->
+        <div class="form-card">
+            <div class="form-card-header" style="background: linear-gradient(135deg, #fff7ed, #ffedd5); color: #c2410c;">
+                <i data-lucide="settings" class="lucide-icon" style="color: #ea580c;"></i> 5. Technical &amp; Operations Details
+            </div>
+            <div class="form-card-body">
+                <div class="grid-4" style="margin-bottom: 15px;">
+                    <div>
+                        <label class="field-label">T-Installation (Transfer)</label>
+                        {{ form.transfer_installation(class="field-select") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Transfer Charges</label>
+                        {{ form.transfer_charges(class="field-input", placeholder="PKR charges") }}
+                    </div>
+                    <div>
+                        <label class="field-label">City (Auto-Pulled)</label>
+                        {{ form.city(class="field-input", id="citySelect", placeholder="Not on file - enter manually") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Vehicle Location</label>
+                        {{ form.vehicle_location(class="field-input", id="vehLocationInput", placeholder="Current physical location") }}
+                    </div>
+                </div>
+                <div class="grid-3">
+                    <div>
+                        <label class="field-label">Technician</label>
+                        {{ form.technician(class="field-select", id="techSelect", onchange="fetchTechLocation(); fetchTechInventory();") }}
+                        <div id="techLocationBadge" class="tech-info-badge">
+                            <i data-lucide="map-pin" class="lucide-icon"></i> <span id="techLocationText">Technician location</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="field-label">Fuel Compensated</label>
+                        {{ form.fuel(class="field-input", placeholder="Fuel compensation for technician") }}
+                    </div>
+                    <div>
+                        <label class="field-label">Resolution Status</label>
+                        {{ form.resolution_status(class="field-select") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 6: REMARKS -->
+        <div class="form-card">
+            <div class="form-card-header" style="background: linear-gradient(135deg, #fdf2f8, #fbcfe8); color: #9d174d;">
+                <i data-lucide="check-square" class="lucide-icon" style="color: #db2777;"></i> 6. Remarks &amp; Work Summary
+            </div>
+            <div class="form-card-body">
+                {{ form.remarks(class="field-textarea", rows="3", placeholder="Detailed notes about the REDO activity, uninstallation, or device servicing...") }}
+            </div>
+        </div>
+
+        <!-- FORM ACTION BUTTONS -->
+        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-bottom: 30px; flex-wrap: wrap;">
+            <button type="button" class="pastel-btn-secondary" onclick="resetRedoForm()">
+                <i data-lucide="rotate-ccw" class="lucide-icon"></i> Clear Form
+            </button>
+            <button type="button" class="pastel-btn-secondary" onclick="prepareNewEntry()">
+                <i data-lucide="plus-circle" class="lucide-icon"></i> Ready For New Entry
+            </button>
+            <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="Save REDO Activity" aria-label="Save REDO Activity">
+                <i data-lucide="save"></i>
+            </button>
+        </div>
+    </form>
+
+    <!-- SECTION 7: HISTORICAL REDO LOG FOR CURRENT VEHICLE -->
+    <div class="form-card" style="border-top: 3px solid var(--odoo-primary);">
+        <div class="form-card-header" style="background: #f8fafc; color: #0f172a; display: flex; justify-content: space-between; align-items: center;">
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="history" class="lucide-icon" style="color: var(--odoo-primary);"></i> Vehicle Historical REDO Activity Log
+            </span>
+            <span class="o_badge" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; font-size: 13px; font-weight: 700;">
+                Total REDOs Performed: <strong id="redoCountBadge">{{ recent_redos|length }}</strong>
+            </span>
+        </div>
+        <div class="form-card-body">
+            <div class="o_list_view">
+                <table class="o_list_table">
+                    <thead class="o_list_header">
+                        <tr>
+                            <th>REDO ID</th>
+                            <th>Reg. No.</th>
+                            <th>Customer Name</th>
+                            <th>Activity Type</th>
+                            <th>Scheduled Date</th>
+                            <th>Technician</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vehicleHistoryTbody">
+                        {% if recent_redos %}
+                            {% for r in recent_redos %}
+                            <tr class="o_list_record">
+                                <td><strong style="color: var(--odoo-primary);">{{ r.redo_number or ('REDO-' ~ r.id) }}</strong></td>
+                                <td><strong>{{ r.registration_no }}</strong></td>
+                                <td>{{ r.customer_name or 'N/A' }}</td>
+                                <td><span class="o_badge" style="background:#f1f5f9; color:#475569;">{{ r.activity_type or 'REDO' }}</span></td>
+                                <td>{{ r.scheduled_date.strftime('%d/%m/%Y') if r.scheduled_date else 'N/A' }}</td>
+                                <td>{{ r.technician or (r.assigned_to_user.name if r.assigned_to_user else 'Unassigned') }}</td>
+                                <td>
+                                    <span class="o_badge {% if r.status == 'COMPLETED' %}o_badge_success{% elif r.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                                        {{ r.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if r.status != 'COMPLETED' %}
+                                    <form method="POST" action="{{ url_for('redo.update', redo_id=r.id) }}" style="display:inline;">
+                                        <input type="hidden" name="status" value="COMPLETED">
+                                        <button type="submit" class="pastel-btn-primary" style="padding: 3px 8px; font-size: 11px;">
+                                            Mark Done
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <span style="font-size: 11px; color: #16a34a; font-weight: 700;">Completed</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: #94a3b8; padding: 25px;">
+                                    No historical REDO records found for this vehicle. Enter vehicle Registration No. above to check history.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Server data the script below needs, carried as JSON rather than pasted into
+   a JavaScript expression.
+
+   `var X = {{ ...|tojson }};` renders correctly but does not *parse* as
+   JavaScript, so an editor reading this block as JS reports several syntax
+   errors on that one line - phantom errors that bury real ones in the
+   Problems panel. A `type="application/json"` block is not JavaScript and is
+   not parsed as any, so the value still comes from the backend constant and
+   the script stays valid JavaScript on its own. #}
+<script type="application/json" id="recoveryAmountsData">
+    {{ recovery_amount_map|default({})|tojson }}
+</script>
+
+{# The PO detail route, built once by url_for with a placeholder id in place
+   of a real one, so the script can point the Purchase Order link at whichever
+   order the lookup returns without hardcoding the URL shape. #}
+<script type="application/json" id="poDetailUrlTemplate">
+    {{ url_for('sales.po_detail', po_id=987654321)|replace('987654321', '__PO_ID__')|tojson }}
+</script>
+
+<script>
+    function lockIfPulled(fieldId, value) {
+        var el = document.getElementById(fieldId);
+        if (!el || !value) return;
+        el.value = value;
+        el.readOnly = true;
+        el.style.background = '#e2e8f0';
+        el.style.fontWeight = '700';
+        el.style.color = '#1e293b';
+    }
+
+    /* The Purchase Order behind the vehicle currently loaded. `null` hides
+       the badge, which is the right state both before a lookup and after one
+       that found no order - a stale link would point at another vehicle's
+       order. */
+    function showPurchaseOrderLink(poId, poNumber) {
+        var badge = document.getElementById('poLinkBadge');
+        var anchor = document.getElementById('poLinkAnchor');
+        if (!badge || !anchor) { return; }
+        if (poId) {
+            anchor.href = PO_DETAIL_URL_TEMPLATE.replace('__PO_ID__', poId);
+            anchor.innerText = poNumber || ('PO-' + poId);
+            badge.style.display = 'block';
+        } else {
+            anchor.removeAttribute('href');
+            anchor.innerText = '-';
+            badge.style.display = 'none';
+        }
+    }
+
+    function fetchVehicleData() {
+        var regNo = document.getElementById('regNoInput').value.trim();
+        if (!regNo) return;
+        
+        fetch("{{ url_for('redo.vehicle_lookup') }}?reg_no=" + encodeURIComponent(regNo))
+            .then(response => response.json())
+            .then(data => {
+                if (data.found) {
+                    if (data.customer_name) document.getElementById('custNameInput').value = data.customer_name;
+                    if (data.customer_contact) document.getElementById('custContactInput').value = data.customer_contact;
+                    if (data.imei_no) document.getElementById('imeiInput').value = data.imei_no;
+                    if (data.sim_no) document.getElementById('simInput').value = data.sim_no;
+                    if (data.device_location) document.getElementById('devLocInput').value = data.device_location;
+
+                    // Salesperson and the order they sold. Cleared rather than
+                    // left standing when the vehicle has no PO on record - a
+                    // name held over from the previous lookup would read as
+                    // this vehicle's salesperson.
+                    document.getElementById('salePersonInput').value = data.sale_person || '';
+                    showPurchaseOrderLink(data.po_id, data.po_number);
+
+                    // Vehicle-spec fields only lock as read-only once real data
+                    // is actually pulled from the DB - if nothing's on file for
+                    // this vehicle, the field stays editable so the technician
+                    // can still enter it instead of hitting a permanent dead end.
+                    lockIfPulled('makeSelect', data.manufacturer);
+                    lockIfPulled('modelSelect', data.brand);
+                    lockIfPulled('yearSelect', data.model_year);
+                    lockIfPulled('colorSelect', data.color);
+                    lockIfPulled('citySelect', data.city);
+                    lockIfPulled('chassisInput', data.chassis_no);
+                    lockIfPulled('engineInput', data.engine_no);
+
+                    // Show Last Service / Previously Installed By
+                    if (data.last_service_by && data.last_service_by !== 'N/A') {
+                        document.getElementById('lastServiceText').innerText = data.last_service_by;
+                        document.getElementById('lastServiceBanner').style.display = 'block';
+                    }
+
+                    // Update Historical REDO Log count & table
+                    if (data.previous_redo_count !== undefined) {
+                        document.getElementById('redoCountBadge').innerText = data.previous_redo_count;
+                    }
+
+                    if (data.previous_redos && data.previous_redos.length > 0) {
+                        var tbodyHtml = '';
+                        data.previous_redos.forEach(r => {
+                            tbodyHtml += '<tr class="o_list_record">' +
+                                '<td><strong style="color: var(--odoo-primary);">' + r.redo_number + '</strong></td>' +
+                                '<td><strong>' + data.registration_no + '</strong></td>' +
+                                '<td>' + (data.customer_name || 'N/A') + '</td>' +
+                                '<td><span class="o_badge" style="background:#f1f5f9; color:#475569;">' + r.activity_type + '</span></td>' +
+                                '<td>' + r.date + '</td>' +
+                                '<td>' + r.technician + '</td>' +
+                                '<td><span class="o_badge o_badge_info">' + r.status + '</span></td>' +
+                                '<td><span style="font-size:11px; color:#64748b;">Recorded</span></td>' +
+                            '</tr>';
+                        });
+                        document.getElementById('vehicleHistoryTbody').innerHTML = tbodyHtml;
+                    }
+                }
+            })
+            .catch(err => console.log('Vehicle lookup error:', err));
+    }
+
+    function snapshotOldDevice() {
+        // Simple snapshot: the first time a New Device / New SIM is entered
+        // (indicating a device swap - missing device, power issue, etc.), the
+        // vehicle's current IMEI/SIM is captured into the read-only Old
+        // IMEI/SIM fields before the server promotes the new device on save.
+        var newDevice = document.getElementById('newDeviceInput').value.trim();
+        var newSim = document.getElementById('newSimInput').value.trim();
+        var oldImeiInput = document.getElementById('oldImeiInput');
+        var oldSimInput = document.getElementById('oldSimInput');
+        if (newDevice && !oldImeiInput.value) {
+            oldImeiInput.value = document.getElementById('imeiInput').value;
+        }
+        if (newSim && !oldSimInput.value) {
+            oldSimInput.value = document.getElementById('simInput').value;
+        }
+
+        // Flag the reason dropdown as needed whenever a device change is in
+        // progress, so the technician doesn't skip logging why.
+        var reasonSelect = document.getElementById('deviceChangeReasonSelect');
+        if (reasonSelect) {
+            if ((newDevice || newSim) && !reasonSelect.value) {
+                reasonSelect.style.borderColor = '#f97316';
+                reasonSelect.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.15)';
+            } else {
+                reasonSelect.style.borderColor = '';
+                reasonSelect.style.boxShadow = '';
+            }
+        }
+    }
+
+    // Sourced from the same RECOVERY_AMOUNT_BY_REASON constant the backend
+    // uses to create the actual charge - templated in, not duplicated by hand.
+    // Read out of the JSON block above rather than interpolated here, so this
+    // file is valid JavaScript as it stands. An empty object if it is missing:
+    // the hint this feeds is an aid, and it must not take the form down.
+    var PO_DETAIL_URL_TEMPLATE = (function () {
+        var node = document.getElementById('poDetailUrlTemplate');
+        try {
+            return JSON.parse((node && node.textContent) || '""');
+        } catch (e) {
+            console.error('PO detail URL could not be read:', e);
+            return '';
+        }
+    })();
+
+    var RECOVERY_AMOUNTS = (function () {
+        var node = document.getElementById('recoveryAmountsData');
+        try {
+            return JSON.parse((node && node.textContent) || '{}');
+        } catch (e) {
+            console.error('Recovery amounts could not be read:', e);
+            return {};
+        }
+    })();
+
+    function updateDeviceChangeAmountHint() {
+        var reasonSelect = document.getElementById('deviceChangeReasonSelect');
+        var hint = document.getElementById('deviceChangeAmountHint');
+        if (!reasonSelect || !hint) return;
+        var reason = reasonSelect.value;
+        if (!reason) { hint.textContent = ''; return; }
+        var amount = RECOVERY_AMOUNTS[reason];
+        if (amount === undefined) { hint.textContent = ''; return; }
+        hint.textContent = amount > 0
+            ? '→ Installation Recovery charge: PKR ' + amount.toLocaleString()
+            : '→ Logged for follow-up, no recovery charge';
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        var reasonSelect = document.getElementById('deviceChangeReasonSelect');
+        if (reasonSelect) {
+            reasonSelect.addEventListener('change', updateDeviceChangeAmountHint);
+            updateDeviceChangeAmountHint();
+        }
+    });
+
+    function fetchTechLocation() {
+        var techSelect = document.getElementById('techSelect');
+        var val = techSelect.value;
+        if (!val) {
+            document.getElementById('techLocationBadge').style.display = 'none';
+            return;
+        }
+        fetch("{{ url_for('redo.technician_info', name='') }}" + encodeURIComponent(val))
+            .then(res => res.json())
+            .then(data => {
+                if (data.location_info) {
+                    document.getElementById('techLocationText').innerText = data.location_info;
+                    document.getElementById('techLocationBadge').style.display = 'block';
+                }
+                if (data.vehicle_location_text) {
+                    document.getElementById('vehLocationInput').value = data.vehicle_location_text;
+                }
+            })
+            .catch(err => console.log('Tech info error:', err));
+    }
+
+    function fetchTechInventory() {
+        var techSelect = document.getElementById('techSelect');
+        var val = techSelect.value;
+        var deviceList = document.getElementById('techDeviceList');
+        var simList = document.getElementById('techSimList');
+        var hint = document.getElementById('techInventoryHint');
+        deviceList.innerHTML = '';
+        simList.innerHTML = '';
+        if (!val) {
+            hint.innerText = 'Select a technician above to see their assigned stock';
+            return;
+        }
+        fetch("{{ url_for('inventory.technician_devices', name='') }}" + encodeURIComponent(val))
+            .then(res => res.json())
+            .then(data => {
+                var devices = data.devices || [];
+                if (devices.length === 0) {
+                    hint.innerText = 'No devices currently assigned to this technician in Inventory';
+                    return;
+                }
+                devices.forEach(function(d) {
+                    var opt = document.createElement('option');
+                    opt.value = d.imei;
+                    opt.label = d.device_name ? (d.imei + ' - ' + d.device_name) : d.imei;
+                    deviceList.appendChild(opt);
+                    if (d.sim_number) {
+                        var simOpt = document.createElement('option');
+                        simOpt.value = d.sim_number;
+                        simList.appendChild(simOpt);
+                    }
+                });
+                hint.innerText = devices.length + ' device(s) assigned to this technician - start typing to see suggestions';
+            })
+            .catch(err => console.log('Tech inventory error:', err));
+    }
+
+    function unlockPulledFields() {
+        ['makeSelect', 'modelSelect', 'yearSelect', 'colorSelect', 'citySelect', 'chassisInput', 'engineInput'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.readOnly = false;
+            el.style.background = '';
+            el.style.fontWeight = '';
+            el.style.color = '';
+        });
+    }
+
+    function resetRedoForm() {
+        if (confirm('Are you sure you want to clear all form fields?')) {
+            document.getElementById('redoForm').reset();
+            unlockPulledFields();
+            document.getElementById('lastServiceBanner').style.display = 'none';
+            showPurchaseOrderLink(null, null);
+            document.getElementById('techLocationBadge').style.display = 'none';
+        }
+    }
+
+    function prepareNewEntry() {
+        document.getElementById('redoForm').reset();
+        unlockPulledFields();
+        document.getElementById('lastServiceBanner').style.display = 'none';
+        document.getElementById('techLocationBadge').style.display = 'none';
+        showPurchaseOrderLink(null, null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // When a REDO is scheduled from the Non-Reporting dashboard, the reg
+        // no arrives pre-filled via ?reg_no=... - pull the rest of the
+        // vehicle/customer data automatically instead of waiting for the
+        // user to blur/change the field themselves.
+        var regNoInput = document.getElementById('regNoInput');
+        if (regNoInput && regNoInput.value.trim()) {
+            fetchVehicleData();
+        }
+    });
+</script>
+{% endblock %}

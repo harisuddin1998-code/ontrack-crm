@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-city" style="color: var(--odoo-primary);"></i>
+        Cities
+    </h1>
+    <div class="o_search_bar">
+        <a href="{{ url_for('admin.city_add') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="Add City" aria-label="Add City">
+            <i class="fas fa-plus"></i>
+        </a>
+    </div>
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Name</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for city in cities %}
+                <tr class="o_list_record">
+                    <td>{{ city.name }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.city_edit', city_id=city.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit City" aria-label="Edit City">
+                            <i class="fas fa-pencil-alt"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('admin.city_delete', city_id=city.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete City" aria-label="Delete City">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="2" style="text-align: center; color: var(--odoo-text-light);">
+                        <i class="fas fa-inbox"></i> No cities found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-trash-alt" style="color: var(--odoo-primary);"></i>
+        Removal Wallboard
+        <span style="font-size: 14px; font-weight: normal; color: var(--odoo-text-light); margin-left: 10px;">
+            <span class="o_badge o_badge_danger" style="font-size: 14px; padding: 4px 12px;">
+                {{ flagged_count }} Pending
+            </span>
+        </span>
+    </h1>
+    
+    <!-- Quick Action Buttons -->
+    <div class="o_search_bar" style="justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 24px;">
+        <a href="{{ url_for('removal.flag_vehicle') }}" class="o_button" style="background: #dc3545; color: white;">
+            <i class="fas fa-flag"></i> Flag Vehicle
+        </a>
+        <a href="{{ url_for('removal.transfer_new') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="New Transfer" aria-label="New Transfer">
+            <i class="fas fa-plus"></i>
+        </a>
+        <a href="{{ url_for('removal.retained_new') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="New Retained" aria-label="New Retained">
+            <i class="fas fa-plus"></i>
+        </a>
+        <a href="{{ url_for('removal.flagged_vehicles') }}" class="o_button o_button_secondary">
+            <i class="fas fa-list"></i> View All Flags
+        </a>
+        <a href="{{ url_for('removal.transfer_dashboard') }}" class="o_button o_button_secondary">
+            <i class="fas fa-list"></i> Transfers
+        </a>
+        <a href="{{ url_for('removal.retained_dashboard') }}" class="o_button o_button_secondary">
+            <i class="fas fa-list"></i> Retained
+        </a>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 24px;">
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('removal.flagged_vehicles', status='PENDING') }}" class="o_dashboard_card o_card_danger" style="text-decoration: none;">
+            <div class="o_card_header">Pending Flags</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ flagged_count }}</div>
+            <div class="o_card_unit">Awaiting action</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_danger">
+            <div class="o_card_header">Pending Flags</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ flagged_count }}</div>
+            <div class="o_card_unit">Awaiting action</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('removal.flagged_vehicles', status='IN_PROGRESS') }}" class="o_dashboard_card o_card_warning" style="text-decoration: none;">
+            <div class="o_card_header">In Progress</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ stats.flags.in_progress|default(0) }}</div>
+            <div class="o_card_unit">Being processed</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_warning">
+            <div class="o_card_header">In Progress</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ stats.flags.in_progress|default(0) }}</div>
+            <div class="o_card_unit">Being processed</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('removal.flagged_vehicles', status='COMPLETED') }}" class="o_dashboard_card o_card_success" style="text-decoration: none;">
+            <div class="o_card_header">Completed</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ stats.flags.completed|default(0) }}</div>
+            <div class="o_card_unit">All time</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_success">
+            <div class="o_card_header">Completed</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ stats.flags.completed|default(0) }}</div>
+            <div class="o_card_unit">All time</div>
+        </div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('removal.retained_dashboard') }}" class="o_dashboard_card o_card_teal" style="text-decoration: none;">
+            <div class="o_card_header">Devices Returned</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ returned_count }}</div>
+            <div class="o_card_unit">Retained devices</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card o_card_teal">
+            <div class="o_card_header">Devices Returned</div>
+            <div class="o_card_value" style="font-size: 28px;">{{ returned_count }}</div>
+            <div class="o_card_unit">Retained devices</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Pending Flags - Wallboard -->
+    <div style="margin-top: 30px;">
+        <h3 style="margin-bottom: 15px; color: var(--odoo-primary-dark);">
+            <i class="fas fa-flag" style="color: #dc3545;"></i> Pending Removals
+            <span class="o_badge o_badge_danger" style="margin-left: 10px; font-size: 12px;">{{ flagged_count }}</span>
+        </h3>
+        
+        <div class="o_list_view">
+            <table class="o_list_table">
+                <thead class="o_list_header">
+                    <tr>
+                        <th>Registration</th>
+                        <th>Customer</th>
+                        <th>Type</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Flagged By</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for flag in flagged_vehicles %}
+                    <tr class="o_list_record" style="{% if flag.priority == 'URGENT' %}background: #fff5f5;{% elif flag.priority == 'HIGH' %}background: #fffbf0;{% endif %}">
+                        <td><strong>{{ flag.registration_no }}</strong></td>
+                        <td>{{ flag.customer_name }}</td>
+                        <td>
+                            <span class="o_badge {% if flag.flag_type == 'REMOVAL' %}o_badge_danger{% elif flag.flag_type == 'RETENTION' %}o_badge_warning{% else %}o_badge_info{% endif %}">
+                                {{ flag.flag_type }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="o_badge {% if flag.priority == 'URGENT' %}o_badge_danger{% elif flag.priority == 'HIGH' %}o_badge_warning{% else %}o_badge_info{% endif %}">
+                                {% if flag.priority == 'URGENT' %}🔴{% elif flag.priority == 'HIGH' %}🟡{% else %}🟢{% endif %}
+                                {{ flag.priority }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="o_badge {% if flag.status == 'COMPLETED' %}o_badge_success{% elif flag.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                                {{ flag.status }}
+                            </span>
+                        </td>
+                        <td>{{ flag.flagged_by_user.name if flag.flagged_by_user else '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('removal.flag_detail', flag_id=flag.id) }}" class="o_icon_btn o_icon_btn_view" title="View Flag Details" aria-label="View Flag Details">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% if flag.status == 'PENDING' %}
+                            <a href="{{ url_for('removal.flag_detail', flag_id=flag.id) }}" class="o_button o_button_success o_button_sm">
+                                <i class="fas fa-check"></i> Process
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--odoo-text-light); padding: 40px;">
+                            <i class="fas fa-check-circle" style="font-size: 36px; color: var(--odoo-success-dark); display: block; margin-bottom: 15px;"></i>
+                            <h4 style="color: var(--odoo-text-light);">No pending removals</h4>
+                            <p style="font-size: 13px;">All clear! No vehicles are currently flagged for removal.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Recent Completed -->
+    <div style="margin-top: 30px;">
+        <h3 style="margin-bottom: 15px; color: var(--odoo-primary-dark);">
+            <i class="fas fa-check-circle" style="color: var(--odoo-success-dark);"></i> Recently Completed
+        </h3>
+        <div class="o_list_view">
+            <table class="o_list_table">
+                <thead class="o_list_header">
+                    <tr>
+                        <th>Registration</th>
+                        <th>Customer</th>
+                        <th>Type</th>
+                        <th>Completed By</th>
+                        <th>Completed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for flag in completed_flags %}
+                    <tr class="o_list_record">
+                        <td>{{ flag.registration_no }}</td>
+                        <td>{{ flag.customer_name }}</td>
+                        <td>
+                            <span class="o_badge {% if flag.flag_type == 'REMOVAL' %}o_badge_danger{% elif flag.flag_type == 'RETENTION' %}o_badge_warning{% else %}o_badge_info{% endif %}">
+                                {{ flag.flag_type }}
+                            </span>
+                        </td>
+                        <td>{{ flag.flagged_by_user.name if flag.flagged_by_user else '-' }}</td>
+                        <td>{{ flag.completed_at.strftime('%d/%m/%Y %H:%M') if flag.completed_at else '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--odoo-text-light); padding: 20px;">
+                            No completed flags yet
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-refresh the page every 60 seconds to update the wallboard
+    setTimeout(function() {
+        window.location.reload();
+    }, 60000);
+</script>
+{% endblock %}

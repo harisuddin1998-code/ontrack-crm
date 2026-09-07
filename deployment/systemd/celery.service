@@ -1,0 +1,42 @@
+[Unit]
+Description=ON TRACK Celery Worker
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/on_track
+Environment="PATH=/var/www/on_track/venv/bin"
+Environment="FLASK_APP=src/app.py"
+Environment="DATABASE_URL=postgresql://on_track:password@localhost/on_track_db"
+Environment="CELERY_BROKER_URL=redis://localhost:6379/0"
+Environment="CELERY_RESULT_BACKEND=redis://localhost:6379/1"
+ExecStart=/var/www/on_track/venv/bin/celery -A src.tasks.celery_app worker --loglevel=info --concurrency=4
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=ON TRACK Celery Beat
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/on_track
+Environment="PATH=/var/www/on_track/venv/bin"
+Environment="FLASK_APP=src/app.py"
+Environment="DATABASE_URL=postgresql://on_track:password@localhost/on_track_db"
+Environment="CELERY_BROKER_URL=redis://localhost:6379/0"
+Environment="CELERY_RESULT_BACKEND=redis://localhost:6379/1"
+ExecStart=/var/www/on_track/venv/bin/celery -A src.tasks.celery_app beat --loglevel=info
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target 

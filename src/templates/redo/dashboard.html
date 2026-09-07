@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="rotate-cw" style="color: var(--odoo-primary);"></i> REDO &amp; Rework Activities Wallboard
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 4px 0 0 0; font-size: 13px;">
+                Real-time tracking of scheduled technician visits and REDO inspections
+            </p>
+        </div>
+
+        <!-- Search Bar -->
+        <form method="GET" action="{{ url_for('redo.dashboard') }}" style="display: flex; gap: 8px; align-items: center; min-width: 280px; flex: 1; max-width: 440px;">
+            {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+            {% if created_filter %}<input type="hidden" name="created" value="{{ created_filter }}">{% endif %}
+            {% if use_external_db %}<input type="hidden" name="source" value="external">{% endif %}
+            <div style="position: relative; width: 100%;">
+                <input type="text" name="search" value="{{ search or '' }}" placeholder="Search activities by Reg #, Customer, Technician, REDO #..." class="o_field_widget" style="width: 100%; padding-left: 34px; height: 36px; border-radius: 8px;">
+                <i data-lucide="search" style="position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: #94a3b8;"></i>
+            </div>
+            <button type="submit" class="pastel-btn-primary" style="padding: 7px 14px; border-radius: 8px; font-weight: 600; white-space: nowrap; height: 36px;">
+                Search
+            </button>
+            {% if search %}
+            <a href="{{ url_for('redo.dashboard', status=status_filter, created=created_filter, source=('external' if use_external_db else 'internal')) }}" class="pastel-btn-secondary" style="padding: 7px 12px; border-radius: 8px; font-weight: 600; text-decoration: none; white-space: nowrap; height: 36px; display: inline-flex; align-items: center;">
+                Clear
+            </a>
+            {% endif %}
+        </form>
+
+        <!-- Header Actions: Follow-up Module & DB Sync Refresh -->
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <a href="{{ url_for('redo.followups') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; text-decoration: none; border-radius: 8px; font-weight: 600; border: 1px solid #c7d2fe; color: #4338ca; background: #eef2ff;">
+                <i data-lucide="phone-forwarded" class="lucide-icon"></i> Follow-up Module
+                {% if followup_stats and (followup_stats.due_today > 0 or followup_stats.overdue > 0) %}
+                <span class="o_badge" style="background: #ef4444; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 2px;">
+                    {{ followup_stats.due_today + followup_stats.overdue }}
+                </span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('redo.non_reporting_sync', next=url_for('redo.dashboard')) }}" class="pastel-btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">
+                <i data-lucide="refresh-cw" class="lucide-icon"></i> DB Sync Refresh
+            </a>
+        </div>
+    </div>
+
+    <!-- Active Follow-up Reminders Alert Banner -->
+    {% if followup_stats and (followup_stats.due_today > 0 or followup_stats.overdue > 0) %}
+    <div style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; border-left: 5px solid #f59e0b; border-radius: 8px; padding: 12px 18px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #fef08a; display: flex; align-items: center; justify-content: center; color: #b45309;">
+                <i data-lucide="bell" style="width: 16px; height: 16px;"></i>
+            </div>
+            <div>
+                <strong style="color: #92400e; font-size: 13px;">Follow-up Scheduling Reminders:</strong>
+                <span style="color: #b45309; font-size: 13px;">
+                    <strong>{{ followup_stats.due_today }} vehicle(s)</strong> scheduled for customer follow-up today
+                    {% if followup_stats.overdue > 0 %}, and <strong style="color: #b91c1c;">{{ followup_stats.overdue }} overdue</strong>{% endif %}.
+                </span>
+            </div>
+        </div>
+        <a href="{{ url_for('redo.followups', tab='due_today' if followup_stats.due_today > 0 else 'overdue') }}" class="pastel-btn-primary" style="padding: 5px 14px; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 6px;">
+            Review Follow-ups &rarr;
+        </a>
+    </div>
+    {% endif %}
+
+    {# Overview cards. This page is gated to redo_technician/admin, so every
+       card is a filter link for everyone who can see it. Colours come from
+       the shared pastel `o_stat_*` tones. #}
+    <div class="o_kanban_stats">
+        <a href="{{ url_for('redo.dashboard') }}"
+            class="o_stat_card o_stat_blue {% if not status_filter %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="activity"></i> REDOs This Month</span>
+            <div class="o_stat_value">{{ stats.this_month|count_fmt }}</div>
+            <div class="o_stat_hint">scheduled this month</div>
+        </a>
+
+        <a href="{{ url_for('redo.dashboard', status='PENDING') }}"
+            class="o_stat_card o_stat_lilac {% if status_filter == 'PENDING' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="clock"></i> Pending</span>
+            <div class="o_stat_value">{{ stats.pending|count_fmt }}</div>
+            <div class="o_stat_hint">awaiting a technician</div>
+        </a>
+
+        <a href="{{ url_for('redo.dashboard', status='IN_PROGRESS') }}"
+            class="o_stat_card o_stat_sky {% if status_filter == 'IN_PROGRESS' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="loader"></i> In Progress</span>
+            <div class="o_stat_value">{{ stats.in_progress|count_fmt }}</div>
+            <div class="o_stat_hint">being worked on</div>
+        </a>
+
+        <a href="{{ url_for('redo.dashboard', status='COMPLETED', show_completed='true') }}"
+            class="o_stat_card o_stat_green {% if status_filter == 'COMPLETED' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="check-circle-2"></i> Completed</span>
+            <div class="o_stat_value">{{ stats.completed|count_fmt }}</div>
+            <div class="o_stat_hint">reworks finished</div>
+        </a>
+
+        <a href="{{ url_for('admin.mis_reports') if current_user.is_admin() else url_for('redo.dashboard') }}"
+            class="o_stat_card o_stat_peach">
+            <span class="o_stat_label"><i data-lucide="shield-alert"></i> Data Issues Found</span>
+            <div class="o_stat_value">{{ stats.data_issues|default(0)|count_fmt }}</div>
+            <div class="o_stat_hint">auto-detected, excluded from MIS</div>
+        </a>
+    </div>
+
+    <!-- Aging Buckets & SLA Escalation Section - mirrors the Non-Reporting
+         System Dashboard exactly (same source, same numbers) since a REDO's
+         urgency comes from how long its vehicle has been offline. -->
+    <h4 style="margin: 25px 0 15px; color: var(--odoo-primary-dark); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="history" style="color: var(--odoo-primary);"></i> SLA Aging Buckets (TAT Monitoring)
+        <span style="font-size: 12px; font-weight: 500; color: var(--odoo-text-light);">&mdash; from Non-Reporting System Dashboard</span>
+    </h4>
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(4, 1fr);">
+        {% if current_user.is_admin() or current_user.is_redo_technician() %}
+        <a href="{{ url_for('redo.non_reporting_dashboard', bucket='24 Hours') }}" class="o_dashboard_card" style="text-decoration: none; background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 5px solid #10b981;">
+            <div class="o_card_header" style="color: #166534;">&lt; 24 Hours</div>
+            <div class="o_card_value" style="color: #15803d;">{{ bucket_counts.get('24 Hours', 0) }}</div>
+            <div class="o_card_unit" style="color: #166534; font-weight: 600;">Within SLA</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 5px solid #10b981;">
+            <div class="o_card_header" style="color: #166534;">&lt; 24 Hours</div>
+            <div class="o_card_value" style="color: #15803d;">{{ bucket_counts.get('24 Hours', 0) }}</div>
+            <div class="o_card_unit" style="color: #166534; font-weight: 600;">Within SLA</div>
+        </div>
+        {% endif %}
+
+        {% if current_user.is_admin() or current_user.is_redo_technician() %}
+        <a href="{{ url_for('redo.non_reporting_dashboard', bucket='25-36 Hours') }}" class="o_dashboard_card" style="text-decoration: none; background: #fefce8; border: 1px solid #fef08a; border-left: 5px solid #eab308;">
+            <div class="o_card_header" style="color: #854d0e;">24h - 36h</div>
+            <div class="o_card_value" style="color: #a16207;">{{ bucket_counts.get('25-36 Hours', 0) }}</div>
+            <div class="o_card_unit" style="color: #854d0e; font-weight: 600;">Warning SLA</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card" style="background: #fefce8; border: 1px solid #fef08a; border-left: 5px solid #eab308;">
+            <div class="o_card_header" style="color: #854d0e;">24h - 36h</div>
+            <div class="o_card_value" style="color: #a16207;">{{ bucket_counts.get('25-36 Hours', 0) }}</div>
+            <div class="o_card_unit" style="color: #854d0e; font-weight: 600;">Warning SLA</div>
+        </div>
+        {% endif %}
+
+        {% if current_user.is_admin() or current_user.is_redo_technician() %}
+        <a href="{{ url_for('redo.non_reporting_dashboard', bucket='37-48 Hours') }}" class="o_dashboard_card" style="text-decoration: none; background: #fff7ed; border: 1px solid #ffedd5; border-left: 5px solid #f97316;">
+            <div class="o_card_header" style="color: #9a3412;">36h - 48h</div>
+            <div class="o_card_value" style="color: #c2410c;">{{ bucket_counts.get('37-48 Hours', 0) }}</div>
+            <div class="o_card_unit" style="color: #9a3412; font-weight: 600;">Critical SLA</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card" style="background: #fff7ed; border: 1px solid #ffedd5; border-left: 5px solid #f97316;">
+            <div class="o_card_header" style="color: #9a3412;">36h - 48h</div>
+            <div class="o_card_value" style="color: #c2410c;">{{ bucket_counts.get('37-48 Hours', 0) }}</div>
+            <div class="o_card_unit" style="color: #9a3412; font-weight: 600;">Critical SLA</div>
+        </div>
+        {% endif %}
+
+        {% if current_user.is_admin() or current_user.is_redo_technician() %}
+        <a href="{{ url_for('redo.non_reporting_dashboard', bucket='48+ Hours') }}" class="o_dashboard_card" style="text-decoration: none; background: #fdf2f8; border: 1px solid #fbcfe8; border-left: 5px solid #ec4899;">
+            <div class="o_card_header" style="color: #9d174d;">&gt; 48 Hours</div>
+            <div class="o_card_value" style="color: #be185d;">{{ bucket_counts.get('48+ Hours', 0) }}</div>
+            <div class="o_card_unit" style="color: #9d174d; font-weight: 600;">SLA Breached</div>
+        </a>
+        {% else %}
+        <div class="o_dashboard_card" style="background: #fdf2f8; border: 1px solid #fbcfe8; border-left: 5px solid #ec4899;">
+            <div class="o_card_header" style="color: #9d174d;">&gt; 48 Hours</div>
+            <div class="o_card_value" style="color: #be185d;">{{ bucket_counts.get('48+ Hours', 0) }}</div>
+            <div class="o_card_unit" style="color: #9d174d; font-weight: 600;">SLA Breached</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- NR Team Follow-Up Module & Reminders Section (Easy Access) -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-top: 25px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="phone-forwarded" style="color: #6366f1; width: 18px; height: 18px;"></i>
+                <h4 style="margin: 0; color: #1e293b; font-size: 14px; font-weight: 700;">
+                    NR Team Follow-Up Module &amp; Scheduling Reminders
+                </h4>
+                <span style="font-size: 11px; color: #64748b;">(Vehicles awaiting technician assignment)</span>
+            </div>
+            <a href="{{ url_for('redo.followups') }}" class="pastel-btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 6px;">
+                <i data-lucide="external-link" style="width: 12px; height: 12px;"></i> Open Follow-Up Module
+            </a>
+        </div>
+        <div class="o_dashboard_cards" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0;">
+            <a href="{{ url_for('redo.followups', tab='due_today') }}" class="o_dashboard_card" style="text-decoration: none; background: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 14px;">
+                <div class="o_card_header" style="color: #92400e; font-size: 12px;">Follow-ups Due Today</div>
+                <div class="o_card_value" style="color: #b45309; font-size: 22px;">{{ followup_stats.due_today if followup_stats else 0 }}</div>
+                <div class="o_card_unit" style="color: #92400e; font-size: 11px;">Scheduled for Today</div>
+            </a>
+            <a href="{{ url_for('redo.followups', tab='overdue') }}" class="o_dashboard_card" style="text-decoration: none; background: #fdf2f8; border: 1px solid #fce7f3; border-left: 4px solid #ec4899; padding: 12px 14px;">
+                <div class="o_card_header" style="color: #9d174d; font-size: 12px;">Overdue Follow-ups</div>
+                <div class="o_card_value" style="color: #be185d; font-size: 22px;">{{ followup_stats.overdue if followup_stats else 0 }}</div>
+                <div class="o_card_unit" style="color: #9d174d; font-size: 11px;">Action Required</div>
+            </a>
+            <a href="{{ url_for('redo.followups', tab='all') }}" class="o_dashboard_card" style="text-decoration: none; background: #f5f3ff; border: 1px solid #ede9fe; border-left: 4px solid #8b5cf6; padding: 12px 14px;">
+                <div class="o_card_header" style="color: #6d28d9; font-size: 12px;">Total in Follow-up State</div>
+                <div class="o_card_value" style="color: #7c3aed; font-size: 22px;">{{ followup_stats.total if followup_stats else 0 }}</div>
+                <div class="o_card_unit" style="color: #6d28d9; font-size: 11px;">Awaiting Tech Assignment</div>
+            </a>
+        </div>
+    </div>
+
+    {# One linear list, not three columns of cards.
+
+       The board grouped by status, but status is already on every row and is
+       filterable from the cards above, so the columns bought a grouping the
+       reader could get anyway - at the cost of three narrow lanes, one of
+       which held 435 rows while the other two sat empty, and a card that
+       could show only five fields.
+
+       Ordering carries the urgency the columns used to imply: breached SLAs
+       first, then longest-waiting first (see redo.dashboard). Each row opens
+       that vehicle's full REDO history, which is what the cards did. #}
+    <div class="o_section_header">
+        <h3><i data-lucide="list"></i>
+            {% if status_filter %}{{ status_filter.replace('_', ' ')|title }} REDOs{% else %}REDO Activities{% endif %}
+        </h3>
+        <span class="o_redo_count">
+            {{ activities|length|count_fmt }} shown
+            {% if status_filter or created_filter %}
+            &middot; <a href="{{ url_for('redo.dashboard') }}">clear filter</a>
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="o_list_view o_redo_list">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Registration</th>
+                    <th>Customer</th>
+                    <th>Sales Person</th>
+                    <th>Technician Assigned</th>
+                    <th>Raised</th>
+                    <th>Aging</th>
+                    <th>Status</th>
+                    <th class="o_action_col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for activity in activities %}
+                {# The whole row drills through, same as the card did. The
+                   buttons inside keep their own behaviour - see base.html. #}
+                <tr class="o_list_record o_row_link{% if activity.sla_exceeded %} is_breached{% endif %}"
+                    data-href="{{ url_for('redo.redo_records', search_by='registration_no', search_term=activity.registration_no) }}"
+                    title="Open REDO history for {{ activity.registration_no }}">
+                    <td><strong>{{ activity.registration_no }}</strong></td>
+                    <td>{{ activity.customer_name or 'Customer not recorded' }}</td>
+                    {# Comes off the vehicle's Purchase Order (see
+                       VehicleSearchService.build_record), not typed here. #}
+                    <td>
+                        {% if activity.sale_person %}{{ activity.sale_person }}{% else %}
+                        <span class="o_redo_muted">No PO on record</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set tech = activity.technician or (activity.assigned_to_user.name if activity.assigned_to_user else '') %}
+                        {% if tech %}{{ tech }}{% else %}
+                        <span class="o_redo_muted">Unassigned</span>
+                        {% endif %}
+                    </td>
+                    <td class="o_redo_nowrap">
+                        {{ activity.created_at.strftime('%d %b %Y, %H:%M') if activity.created_at else 'N/A' }}
+                    </td>
+                    <td class="o_redo_nowrap">
+                        {{ activity.aging_display }}
+                        {% if activity.sla_exceeded %}
+                        <span class="o_badge o_badge_danger" title="Past the 24 hour SLA">
+                            <i data-lucide="alert-triangle"></i> SLA
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span
+                            class="o_badge {% if activity.status == 'COMPLETED' %}o_badge_success{% elif activity.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                            {{ activity.status.replace('_', ' ') }}
+                        </span>
+                    </td>
+                    <td class="o_action_col">
+                        <div class="o_action_btns">
+                            <a href="{{ url_for('redo.redo_records', search_by='registration_no', search_term=activity.registration_no) }}"
+                                class="o_icon_btn o_icon_btn_view" title="REDO history for {{ activity.registration_no }}"
+                                aria-label="REDO history for {{ activity.registration_no }}"><i data-lucide="history"></i></a>
+                            <a href="{{ url_for('redo.new', reg_no=activity.registration_no) }}"
+                                class="o_icon_btn o_icon_btn_edit" title="Schedule a REDO for {{ activity.registration_no }}"
+                                aria-label="Schedule a REDO for {{ activity.registration_no }}"><i
+                                    data-lucide="wrench"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center; color: var(--odoo-text-light); padding: 34px;">
+                        {% if status_filter or created_filter %}
+                        No REDO activities match this filter.
+                        <a href="{{ url_for('redo.dashboard') }}">Show all</a>
+                        {% else %}
+                        No REDO activities found
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .o_redo_count {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--odoo-text-light);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* A breached row is marked with a stripe rather than a filled background.
+       Hundreds of rows tinted pink stop reading as an alert and start reading
+       as the table's colour; a stripe at the edge stays visible while
+       scrolling and leaves the text on white. */
+    .o_redo_list .o_list_record.is_breached td:first-child {
+        box-shadow: inset 3px 0 0 0 #E11D48;
+    }
+
+    .o_redo_list .o_list_record.is_breached {
+        background: #FFF7FA;
+    }
+
+    .o_redo_list .o_redo_nowrap {
+        white-space: nowrap;
+    }
+
+    /* An aging figure and its SLA badge belong on one line together. */
+    .o_redo_list .o_redo_nowrap .o_badge {
+        margin-left: 6px;
+    }
+
+    .o_redo_list .o_redo_muted {
+        color: var(--odoo-text-muted);
+        text-transform: none;
+    }
+</style>
+{% endblock %}

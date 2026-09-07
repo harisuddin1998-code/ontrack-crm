@@ -1,0 +1,12 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container" style="max-width: 500px; margin: 60px auto; text-align: center;">
+    <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: var(--odoo-danger);"></i>
+    <h1 style="font-size: 48px; margin: 20px 0;">500</h1>
+    <p style="font-size: 18px; color: var(--odoo-text-light);">Something went wrong</p>
+    <div class="o_action_bar">
+        <a href="{{ url_for('index') }}" class="o_button"><i class="fas fa-home"></i> Go Home</a>
+    </div>
+</div>
+{% endblock %}

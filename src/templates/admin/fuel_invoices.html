@@ -1,0 +1,494 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div class="o_fi_head">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+                <i data-lucide="receipt" style="color: var(--odoo-primary);"></i> Fuel Invoices
+            </h1>
+            <p class="o_fi_sub">
+                Reimbursement for field travel. Distance is measured point A to point B through the system's own
+                routing; fuel and cost follow from it. Non-fuel items are claimed as their own lines.
+            </p>
+        </div>
+    </div>
+
+    <!-- Period & technician filter -->
+    <form method="get" class="o_report_filters" action="{{ url_for('admin.fuel_invoices') }}">
+        <label class="o_report_date"><span>Technician</span>
+            <select name="technician_id" class="o_field_widget" style="width: 190px;">
+                <option value="">All technicians</option>
+                {% for tech in technicians %}
+                <option value="{{ tech.id }}" {% if technician_filter==tech.id %}selected{% endif %}>{{ tech.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="o_report_date"><span>From</span>
+            <input type="date" name="from" value="{{ date_range.from_str }}" class="o_field_widget no-uppercase">
+        </label>
+        <label class="o_report_date"><span>To</span>
+            <input type="date" name="to" value="{{ date_range.to_str }}" class="o_field_widget no-uppercase">
+        </label>
+        <label class="o_report_date"><span>Invoices</span>
+            <select name="status" class="o_field_widget" style="width: 190px;">
+                <option value="">Pending &amp; Paid ({{ invoice_counts.all }})</option>
+                <option value="PENDING" {% if status_filter=='PENDING' %}selected{% endif %}>
+                    Pending only ({{ invoice_counts.pending }})</option>
+                <option value="PAID" {% if status_filter=='PAID' %}selected{% endif %}>
+                    Paid only ({{ invoice_counts.paid }})</option>
+            </select>
+        </label>
+        <button type="submit" class="o_button"><i data-lucide="filter"></i> Apply</button>
+        <a href="{{ url_for('admin.fuel_invoices') }}" class="o_button o_button_secondary">
+            <i data-lucide="rotate-ccw"></i> This Month
+        </a>
+        <span class="o_report_showing">Totals for <strong>{{ date_range.label }}</strong></span>
+    </form>
+
+    {# Period totals. Kilometers Billed is what the invoices charged for;
+       Kilometers Calculated is what the routing actually measured. Showing
+       both makes a discrepancy visible instead of hiding it in one number. #}
+    <div class="o_kanban_stats">
+        <div class="o_stat_card o_stat_blue" style="cursor: default;">
+            <span class="o_stat_label"><i data-lucide="list-checks"></i> Total Activities</span>
+            <div class="o_stat_value">{{ totals.activities|count_fmt }}</div>
+            <div class="o_stat_hint">completed field legs in period</div>
+        </div>
+        <div class="o_stat_card o_stat_sky" style="cursor: default;">
+            <span class="o_stat_label"><i data-lucide="route"></i> Kilometers Billed</span>
+            <div class="o_stat_value">{{ totals.km_billed|money }}</div>
+            <div class="o_stat_hint">km charged on invoices</div>
+        </div>
+        <div class="o_stat_card o_stat_teal" style="cursor: default;">
+            <span class="o_stat_label"><i data-lucide="map"></i> Kilometers Calculated</span>
+            <div class="o_stat_value">{{ totals.km_calculated|money }}</div>
+            <div class="o_stat_hint">km measured point A to point B</div>
+        </div>
+        <div class="o_stat_card o_stat_amber" style="cursor: default;">
+            <span class="o_stat_label"><i data-lucide="fuel"></i> Fuel Calculated</span>
+            <div class="o_stat_value">{{ totals.fuel_calculated|money }}</div>
+            <div class="o_stat_hint">litres from measured distance</div>
+        </div>
+        <div class="o_stat_card o_stat_green" style="cursor: default;">
+            <span class="o_stat_label"><i data-lucide="banknote"></i> Fuel Expense Claimed</span>
+            <div class="o_stat_value">{{ totals.fuel_claimed|money_pkr }}</div>
+            <div class="o_stat_hint">across {{ totals.invoices|count_fmt }} invoice(s)</div>
+        </div>
+        <div class="o_stat_card o_stat_lilac" style="cursor: default;">
+            <span class="o_stat_label"><i data-lucide="plus-circle"></i> Additional Expenses</span>
+            <div class="o_stat_value">{{ totals.additional_expenses|money_pkr }}</div>
+            <div class="o_stat_hint">top-offs, relays, other items</div>
+        </div>
+        <div class="o_stat_card o_stat_peach" style="cursor: default;">
+            <span class="o_stat_label"><i data-lucide="wallet"></i> Net Payable</span>
+            <div class="o_stat_value">{{ totals.net_payable|money_pkr }}</div>
+            <div class="o_stat_hint">after customer-provided fuel</div>
+        </div>
+    </div>
+
+    <!-- Generate a new invoice -->
+    <div class="o_form_view" style="margin-bottom: 20px;">
+        <div class="o_section_header o_section_header_flush">
+            <h3><i data-lucide="file-plus"></i> Generate Invoice</h3>
+        </div>
+        <div class="o_form_body" style="padding: 16px 18px;">
+            <form method="POST" action="{{ url_for('admin.fuel_invoice_generate') }}" class="o_fi_generate">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <label class="o_report_date"><span>Technician</span>
+                    <select name="technician_id" class="o_field_widget" style="width: 200px;" required>
+                        <option value="">Select technician</option>
+                        {% for tech in technicians %}
+                        <option value="{{ tech.id }}">{{ tech.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="o_report_date"><span>Start Date</span>
+                    <input type="date" name="start_date" class="o_field_widget no-uppercase" required>
+                </label>
+                <label class="o_report_date"><span>End Date</span>
+                    <input type="date" name="end_date" class="o_field_widget no-uppercase" required>
+                </label>
+                <button type="submit" class="o_button">
+                    <i data-lucide="settings"></i> Generate Invoice
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {# Every invoice ever generated, pending and paid, newest first. The date
+       range above scopes the totals, not this list: an unpaid invoice from
+       two months ago is precisely the one somebody is looking for, and it
+       would not be here if the window hid it. #}
+    <div class="o_list_view">
+        <div class="o_section_header o_section_header_flush">
+            <h3><i data-lucide="file-text"></i> Invoices</h3>
+            <span class="o_mis_period_chip">
+                {% if status_filter == 'PENDING' %}All pending invoices
+                {% elif status_filter == 'PAID' %}All paid invoices
+                {% else %}All invoices generated &mdash; pending &amp; paid{% endif %}
+                ({{ invoices|length }})
+            </span>
+        </div>
+        <table class="o_list_table">
+            <thead>
+                <tr class="o_list_header">
+                    <th>Invoice #</th>
+                    <th>Technician</th>
+                    <th>Period</th>
+                    <th class="o_amount">Distance (km)</th>
+                    <th class="o_amount">Fuel Amount</th>
+                    <th class="o_amount">Additional</th>
+                    <th class="o_amount">Net Payable</th>
+                    <th>Status</th>
+                    <th class="o_action_col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}
+                <tr class="o_list_record">
+                    <td><strong>{{ invoice.invoice_number }}</strong></td>
+                    <td>{{ invoice.technician.name if invoice.technician else '-' }}</td>
+                    <td>{{ invoice.start_date.strftime('%d/%m/%Y') if invoice.start_date else '-' }}
+                        &rarr; {{ invoice.end_date.strftime('%d/%m/%Y') if invoice.end_date else '-' }}</td>
+                    <td class="o_amount">{{ invoice.total_distance|money }}</td>
+                    <td class="o_amount">{{ invoice.total_amount|money_pkr }}</td>
+                    <td class="o_amount">{{ invoice.additional_expenses_total()|money_pkr }}</td>
+                    <td class="o_amount"><strong>{{ invoice.net_payable|money_pkr }}</strong></td>
+                    <td>
+                        <span
+                            class="o_badge {% if invoice.status == 'PAID' %}o_badge_success{% else %}o_badge_warning{% endif %}">{{ invoice.status }}</span>
+                    </td>
+                    <td class="o_action_col">
+                        <div class="o_icon_btn_group">
+                            <button type="button" class="o_icon_btn o_icon_btn_view o_fi_toggle"
+                                data-target="expenses-{{ invoice.id }}" title="Additional expenses"
+                                aria-label="Additional expenses"><i data-lucide="list-plus"></i></button>
+                            <a href="{{ url_for('admin.fuel_invoice_pdf', invoice_id=invoice.id) }}"
+                                target="_blank" rel="noopener"
+                                class="o_icon_btn o_icon_btn_view" title="View the invoice PDF"
+                                aria-label="View the invoice PDF"><i data-lucide="file-text"></i></a>
+                            <a href="{{ url_for('admin.fuel_invoice_pdf', invoice_id=invoice.id, download=1) }}"
+                                class="o_icon_btn o_icon_btn_edit" title="Download the invoice PDF"
+                                aria-label="Download the invoice PDF"><i data-lucide="download"></i></a>
+                            {% if invoice.status != 'PAID' %}
+                            <form method="POST"
+                                action="{{ url_for('admin.fuel_invoice_mark_paid', invoice_id=invoice.id) }}"
+                                style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                <button type="submit" class="o_icon_btn o_icon_btn_add" title="Mark Paid"
+                                    aria-label="Mark Paid"><i data-lucide="check"></i></button>
+                            </form>
+                            {% endif %}
+                            <form method="POST"
+                                action="{{ url_for('admin.fuel_invoice_delete', invoice_id=invoice.id) }}"
+                                style="display:inline;" onsubmit="return confirm('Delete this invoice?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete Invoice"
+                                    aria-label="Delete Invoice"><i data-lucide="trash-2"></i></button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+
+                {# Additional expenses for this invoice - mobile top-offs,
+                   relays and sundries, kept as their own lines so the fuel
+                   figures stay purely derived from routing. #}
+                <tr class="o_fi_expenses" id="expenses-{{ invoice.id }}"
+                    {% if open_expenses != invoice.id %}hidden{% endif %}>
+                    <td colspan="9">
+                        <div class="o_fi_expense_panel">
+                            <h4><i data-lucide="plus-circle"></i> Additional Expenses &mdash;
+                                {{ invoice.invoice_number }}</h4>
+
+                            {% if invoice.expenses %}
+                            <table class="o_fi_expense_table">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Description</th>
+                                        <th>Added By</th>
+                                        <th class="o_amount">Amount</th>
+                                        <th class="o_action_col"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for expense in invoice.expenses %}
+                                    <tr>
+                                        <td><span class="o_badge o_badge_info">{{ expense.label }}</span></td>
+                                        <td>{{ expense.description or '-' }}</td>
+                                        <td>{{ expense.added_by_name or '-' }}</td>
+                                        <td class="o_amount">{{ expense.amount|money_pkr }}</td>
+                                        <td class="o_action_col">
+                                            {% if invoice.status != 'PAID' %}
+                                            <form method="POST"
+                                                action="{{ url_for('admin.fuel_invoice_expense_delete', expense_id=expense.id) }}"
+                                                onsubmit="return confirm('Remove this expense?')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                                {% include 'admin/_fuel_search_state.html' %}
+                                                <button type="submit" class="o_icon_btn o_icon_btn_delete"
+                                                    title="Remove expense" aria-label="Remove expense"><i
+                                                        data-lucide="x"></i></button>
+                                            </form>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    <tr class="o_fi_expense_total">
+                                        <td colspan="3"><strong>Total additional expenses</strong></td>
+                                        <td class="o_amount">
+                                            <strong>{{ invoice.additional_expenses_total()|money_pkr }}</strong></td>
+                                        <td></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p class="o_fi_expense_empty">No additional expenses claimed on this invoice.</p>
+                            {% endif %}
+
+                            {% if invoice.status != 'PAID' %}
+                            <form method="POST"
+                                action="{{ url_for('admin.fuel_invoice_expense_add', invoice_id=invoice.id) }}"
+                                class="o_fi_expense_form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                {% include 'admin/_fuel_search_state.html' %}
+                                <label class="o_report_date"><span>Item</span>
+                                    <select name="category" class="o_field_widget" style="width: 170px;">
+                                        {% for value, label in expense_categories %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                <label class="o_report_date" style="flex: 1; min-width: 200px;"><span>Description</span>
+                                    <input type="text" name="description" class="o_field_widget"
+                                        placeholder="What was it for?">
+                                </label>
+                                <label class="o_report_date"><span>Amount (PKR)</span>
+                                    <input type="number" name="amount" step="0.01" min="0.01"
+                                        class="o_field_widget no-uppercase" style="width: 140px;" required>
+                                </label>
+                                <button type="submit" class="o_button">
+                                    <i data-lucide="save"></i> Add Expense
+                                </button>
+                            </form>
+                            {% else %}
+                            <p class="o_fi_expense_empty">This invoice is paid - its expenses are locked.</p>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        No invoices have been generated yet
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# Asked after each expense is saved, because expenses come in runs and the
+   page cannot know when a run has ended. "No" keeps the panel open with the
+   cursor in the amount box, ready for the next line; "Yes" closes it and
+   hands the page back. Rendered only when an expense was just added. #}
+{% if just_added %}
+<div class="o_fi_ask" id="fiAskDone" role="dialog" aria-modal="true" aria-labelledby="fiAskTitle"
+    data-invoice="{{ just_added }}">
+    <div class="o_fi_ask_box">
+        <h4 id="fiAskTitle"><i data-lucide="list-plus"></i> Are you done?</h4>
+        <p>The expense was added. Do you have more to add to this invoice?</p>
+        <div class="o_fi_ask_actions">
+            <button type="button" class="o_button" id="fiAskNo">
+                <i data-lucide="plus"></i> No &mdash; add another
+            </button>
+            <button type="button" class="o_button o_button_secondary" id="fiAskYes">
+                <i data-lucide="check"></i> Yes &mdash; I'm done
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .o_fi_head {
+        margin-bottom: 16px;
+    }
+
+    .o_fi_sub {
+        color: var(--odoo-text-light);
+        font-size: 12px;
+        margin: 6px 0 0;
+        max-width: 80ch;
+    }
+
+    .o_fi_generate {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .o_fi_expenses td {
+        padding: 0 !important;
+        background: var(--odoo-secondary);
+    }
+
+    .o_fi_expense_panel {
+        padding: 16px 18px;
+        border-top: 1px solid var(--odoo-border);
+    }
+
+    .o_fi_expense_panel h4 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 12px;
+        font-size: 12.5px;
+        color: var(--odoo-primary-dark);
+        text-transform: none;
+    }
+
+    .o_fi_expense_table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--odoo-white);
+        border: 1px solid var(--odoo-border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+
+    .o_fi_expense_table th {
+        text-align: left;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--odoo-text-light);
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--odoo-border);
+    }
+
+    .o_fi_expense_table td {
+        padding: 8px 12px;
+        font-size: 12px;
+        border-bottom: 1px solid var(--odoo-primary-soft);
+    }
+
+    .o_fi_expense_table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .o_fi_expense_total td {
+        background: var(--odoo-primary-soft);
+    }
+
+    .o_fi_expense_form {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .o_fi_expense_empty {
+        font-size: 11.5px;
+        color: var(--odoo-text-muted);
+        margin: 0 0 12px;
+    }
+
+    .o_fi_ask {
+        position: fixed;
+        inset: 0;
+        background: rgba(17, 24, 39, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1200;
+        padding: 20px;
+    }
+
+    .o_fi_ask_box {
+        background: var(--odoo-white);
+        border: 1px solid var(--odoo-border);
+        border-radius: 12px;
+        box-shadow: 0 18px 40px rgba(17, 24, 39, 0.25);
+        padding: 20px 22px;
+        max-width: 420px;
+        width: 100%;
+    }
+
+    .o_fi_ask_box h4 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 8px;
+        font-size: 14px;
+        color: var(--odoo-primary-dark);
+        text-transform: none;
+    }
+
+    .o_fi_ask_box p {
+        margin: 0 0 16px;
+        font-size: 12.5px;
+        color: var(--odoo-text-light);
+    }
+
+    .o_fi_ask_actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.o_fi_toggle').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var panel = document.getElementById(button.dataset.target);
+                if (panel) { panel.hidden = !panel.hidden; }
+            });
+        });
+
+        /* A panel the server re-opened (?expenses=) is scrolled to, so a run
+           of entries stays in front of the person making it rather than
+           leaving them to find their place again after each save. It is
+           found by which panel is showing, so no server value has to be
+           interpolated into this script. */
+        var reopened = document.querySelector('.o_fi_expenses:not([hidden])');
+        if (reopened) { reopened.scrollIntoView({ block: 'center' }); }
+
+        /* "Are you done?" - see the dialog's own comment. Only one of the two
+           answers navigates: "No" simply puts the cursor back in the amount
+           box of the panel that is already open. */
+        var ask = document.getElementById('fiAskDone');
+        if (!ask) { return; }
+
+        function closeRun() {
+            /* Drop `added`/`expenses` so a reload does not ask again, and
+               keep the search the user is working within. */
+            var url = new URL(window.location.href);
+            url.searchParams.delete('added');
+            url.searchParams.delete('expenses');
+            window.location.href = url.toString();
+        }
+
+        function continueRun() {
+            var panel = document.getElementById('expenses-' + ask.dataset.invoice);
+            ask.remove();
+            if (!panel) { return; }
+            panel.hidden = false;
+            var amount = panel.querySelector('input[name="amount"]');
+            if (amount) { amount.focus(); }
+        }
+
+        document.getElementById('fiAskYes').addEventListener('click', closeRun);
+        document.getElementById('fiAskNo').addEventListener('click', continueRun);
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && document.getElementById('fiAskDone')) { continueRun(); }
+        });
+    });
+</script>
+{% endblock %}

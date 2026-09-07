@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div class="o_dashboard_topbar">
+        <h1 class="o_page_title" style="margin: 0; border: none; padding: 0;">
+            <i data-lucide="trending-up" style="color: var(--odoo-primary);"></i> Sales Dashboard
+        </h1>
+        {# Dashboard toolbar: icons only, labels kept for assistive tech. #}
+        <div class="o_icons_only" style="display: flex; gap: 8px;">
+            <a href="{{ url_for('sales.new_po') }}" class="o_button" title="New Purchase Order"
+                aria-label="New Purchase Order">
+                <i data-lucide="plus"></i><span class="o_btn_label">New PO</span>
+            </a>
+        </div>
+    </div>
+
+    {# Purchase orders generated, as kanban cards. Each one is a link that
+       filters the table below to exactly that set - the card and the list
+       always agree because the card simply sets the list's own filter. #}
+    <div class="o_kanban_stats">
+        <a href="{{ url_for('sales.dashboard', search=search, sales_person=sales_person_filter) }}"
+            class="o_stat_card o_stat_blue {% if not status_filter %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="file-spreadsheet"></i> Total POs Generated</span>
+            <div class="o_stat_value">{{ card_stats.total|count_fmt }}</div>
+            <div class="o_stat_hint">all purchase orders</div>
+        </a>
+
+        <a href="{{ url_for('sales.dashboard', search=search, sales_person=sales_person_filter, status='PENDING') }}"
+            class="o_stat_card o_stat_amber {% if status_filter == 'PENDING' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="clock"></i> Pending</span>
+            <div class="o_stat_value">{{ card_stats.pending|count_fmt }}</div>
+            <div class="o_stat_hint">awaiting installation</div>
+        </a>
+
+        <a href="{{ url_for('sales.dashboard', search=search, sales_person=sales_person_filter, status='IN_PROGRESS') }}"
+            class="o_stat_card o_stat_sky {% if status_filter == 'IN_PROGRESS' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="play"></i> In Progress</span>
+            <div class="o_stat_value">{{ card_stats.in_progress|count_fmt }}</div>
+            <div class="o_stat_hint">being installed</div>
+        </a>
+
+        <a href="{{ url_for('sales.dashboard', search=search, sales_person=sales_person_filter, status='COMPLETED') }}"
+            class="o_stat_card o_stat_green {% if status_filter == 'COMPLETED' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="check-circle"></i> Completed</span>
+            <div class="o_stat_value">{{ card_stats.completed|count_fmt }}</div>
+            <div class="o_stat_hint">installations done</div>
+        </a>
+
+        <a href="{{ url_for('sales.dashboard', search=search, sales_person=sales_person_filter) }}" class="o_stat_card o_stat_lilac">
+            <span class="o_stat_label"><i data-lucide="calendar-plus"></i> Raised Today</span>
+            <div class="o_stat_value">{{ card_stats.today|count_fmt }}</div>
+            <div class="o_stat_hint">created today</div>
+        </a>
+    </div>
+
+    <div class="o_search_bar">
+        <input type="text" class="o_search_input" placeholder="Search by PO, Customer..." id="searchInput"
+            value="{{ search }}">
+        <select class="o_filter_select" id="statusFilter">
+            <option value="">All Status</option>
+            <option value="PENDING" {% if status_filter=='PENDING' %}selected{% endif %}>Pending</option>
+            <option value="IN_PROGRESS" {% if status_filter=='IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+            <option value="COMPLETED" {% if status_filter=='COMPLETED' %}selected{% endif %}>Completed</option>
+        </select>
+        {# Searching by salesperson is the Administrator's alone. Everyone
+           else is already fixed to their own orders by the query behind this
+           page, so for them the control would be a choice with one answer.
+           `sales_users` is only populated for an admin, so this is empty
+           rather than merely hidden for anybody else. #}
+        {% if sales_users %}
+        <select class="o_filter_select" id="salesPersonFilter" title="Search by salesperson"
+            aria-label="Search by salesperson">
+            <option value="">All Salespersons</option>
+            {% for u in sales_users %}
+            <option value="{{ u.id }}" {% if sales_person_filter==u.id|string %}selected{% endif %}>
+                {{ u.name or u.username }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+    </div>
+
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>PO Number</th>
+                    <th>Customer</th>
+                    <th>Registration</th>
+                    <th>Vehicle</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th class="o_action_col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for po in orders %}
+                <tr class="o_list_record o_row_link" data-href="{{ url_for('sales.po_detail', po_id=po.id) }}">
+                    <td>{{ po.po_number }}</td>
+                    <td>{{ po.owner_name }}</td>
+                    <td>{{ po.reg_no }}</td>
+                    <td>{{ po.vehicle_make }} {{ po.vehicle_model }}</td>
+                    <td><span
+                            class="o_badge {% if po.status == 'COMPLETED' %}o_badge_success{% elif po.status == 'PENDING' %}o_badge_warning{% elif po.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_secondary{% endif %}">{{ po.status }}</span>
+                    </td>
+                    <td>{{ po.created_at.strftime('%d/%m/%Y') if po.created_at else '-' }}</td>
+                    <td class="o_action_col">
+                        <a href="{{ url_for('sales.po_detail', po_id=po.id) }}" class="o_icon_btn o_icon_btn_view"
+                            title="View PO" aria-label="View PO"><i data-lucide="eye"></i></a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--odoo-text-light); padding: 26px;">
+                        <i data-lucide="inbox" style="display: block; margin: 0 auto 8px;"></i>
+                        No purchase orders found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .o_dashboard_topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+</style>
+
+<script>
+    /* One place builds the query, so a control added to the search bar cannot
+       drop the ones beside it - which is what a per-control handler that
+       spells out its own URL does the moment there are three of them. */
+    (function () {
+        var searchInput = document.getElementById('searchInput');
+        var statusFilter = document.getElementById('statusFilter');
+        var salesFilter = document.getElementById('salesPersonFilter');
+
+        function applyFilters() {
+            var params = new URLSearchParams();
+            if (searchInput.value) { params.set('search', searchInput.value); }
+            if (statusFilter.value) { params.set('status', statusFilter.value); }
+            if (salesFilter && salesFilter.value) { params.set('sales_person', salesFilter.value); }
+            var query = params.toString();
+            window.location.href = '{{ url_for("sales.dashboard") }}' + (query ? '?' + query : '');
+        }
+
+        searchInput.addEventListener('keyup', function (e) {
+            if (e.key === 'Enter') { applyFilters(); }
+        });
+        statusFilter.addEventListener('change', applyFilters);
+        if (salesFilter) { salesFilter.addEventListener('change', applyFilters); }
+    })();
+</script>
+{% endblock %}

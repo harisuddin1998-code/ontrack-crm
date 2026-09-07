@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="cpu" style="color: var(--odoo-primary);"></i> Device Change Report
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Complete details of every device swap - old &amp; new IMEI/SIM, vehicle, customer, technician, and reason
+            </p>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="{{ url_for('redo.device_change_report_export', search=search, reason=reason_filter, **{'from': date_range.from_str, 'to': date_range.to_str}) }}"
+                class="o_button">
+                <i data-lucide="file-down"></i> Download (Excel)
+            </a>
+            <a href="{{ url_for('redo.dashboard') }}" class="o_button o_button_secondary">
+                <i data-lucide="arrow-left"></i> REDO Wallboard
+            </a>
+        </div>
+    </div>
+
+    {# Summary by Change Reason - pastel cards, each filtering the table
+       below. The counts follow the selected period, same as the table. #}
+    <div class="o_kanban_stats">
+        {% for reason, count in reason_summary.items() %}
+        <a href="{{ url_for('redo.device_change_report', reason=reason if reason != 'Not Specified' else '', **{'from': date_range.from_str, 'to': date_range.to_str}) }}"
+            class="o_stat_card {% if reason == 'Device Missing' %}o_stat_rose{% elif reason == 'Device Damage' %}o_stat_peach{% elif reason == 'Power Issue' %}o_stat_amber{% else %}o_stat_grey{% endif %} {% if reason_filter == reason %}is_active{% endif %}">
+            <span class="o_stat_label">{{ reason }}</span>
+            <div class="o_stat_value">{{ count|count_fmt }}</div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Filters -->
+    <form method="GET" class="o_report_filters">
+        <input type="text" name="search" value="{{ search }}" placeholder="Search by Reg. No. or Customer..."
+            class="o_field_widget" style="max-width: 260px;">
+        <select name="reason" class="o_field_widget" style="max-width: 200px;">
+            <option value="">-- All Reasons --</option>
+            {% for reason in reason_choices %}
+            <option value="{{ reason }}" {% if reason_filter==reason %}selected{% endif %}>{{ reason }}</option>
+            {% endfor %}
+        </select>
+        <label class="o_report_date"><span>From</span>
+            <input type="date" name="from" value="{{ date_range.from_str }}" class="o_field_widget no-uppercase">
+        </label>
+        <label class="o_report_date"><span>To</span>
+            <input type="date" name="to" value="{{ date_range.to_str }}" class="o_field_widget no-uppercase">
+        </label>
+        <button type="submit" class="o_button">
+            <i data-lucide="filter"></i> Apply Filters
+        </button>
+        {% if search or reason_filter or date_range.is_filtered %}
+        <a href="{{ url_for('redo.device_change_report') }}" class="o_button o_button_secondary">
+            <i data-lucide="x"></i> Clear
+        </a>
+        {% endif %}
+        <span class="o_report_showing">Showing <strong>{{ date_range.label }}</strong></span>
+    </form>
+
+    <!-- Device Change Log -->
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Date</th>
+                    <th>REDO #</th>
+                    <th>Registration</th>
+                    <th>Customer</th>
+                    <th>Old IMEI / SIM</th>
+                    <th>New IMEI / SIM</th>
+                    <th>Reason</th>
+                    <th>Technician</th>
+                    <th>City / Location</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for change in changes %}
+                <tr class="o_list_record">
+                    <td>{{ change.created_at.strftime('%d/%m/%Y %H:%M') if change.created_at else 'N/A' }}</td>
+                    <td><strong style="color: var(--odoo-primary);">{{ change.redo_number or ('REDO-' ~ change.id) }}</strong></td>
+                    <td><strong>{{ change.registration_no }}</strong></td>
+                    <td>{{ change.customer_name or 'N/A' }}<br><small style="color: var(--odoo-text-light);">{{ change.customer_contact or 'N/A' }}</small></td>
+                    <td>{{ change.old_imei_no or 'N/A' }}<br><small style="color: var(--odoo-text-light);">{{ change.old_sim_no or 'N/A' }}</small></td>
+                    <td>{{ change.new_device or 'N/A' }}<br><small style="color: var(--odoo-text-light);">{{ change.new_sim or 'N/A' }}</small></td>
+                    <td>
+                        <span class="o_badge {% if change.device_change_reason == 'Device Missing' %}o_badge_danger{% elif change.device_change_reason %}o_badge_warning{% else %}o_badge_secondary{% endif %}">
+                            {{ change.device_change_reason or 'Not Specified' }}
+                        </span>
+                    </td>
+                    <td>{{ change.technician or 'Unassigned' }}</td>
+                    <td>{{ change.city or 'N/A' }}<br><small style="color: var(--odoo-text-light);">{{ change.device_location or change.vehicle_location or '' }}</small></td>
+                    <td>
+                        <span class="o_badge {% if change.status == 'COMPLETED' %}o_badge_success{% elif change.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}">
+                            {{ change.status }}
+                        </span>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">
+                        No device change activities recorded{% if reason_filter %} for "{{ reason_filter }}"{% endif %}.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

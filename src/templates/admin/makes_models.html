@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <!-- Page Title -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="car" class="lucide-icon" style="width: 26px; height: 26px; color: var(--odoo-primary);"></i> 
+                Manufacturers &amp; Brands Management
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 13.5px;">
+                Unified master repository for vehicle makes and their corresponding models
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <span class="o_badge o_badge_primary" style="padding: 6px 14px; font-weight: 700;">
+                <i data-lucide="car"></i> MAKES: {{ makes | length }}
+            </span>
+            <span class="o_badge o_badge_info" style="padding: 6px 14px; font-weight: 700;">
+                <i data-lucide="disc"></i> MODELS: {{ models | length }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Unified Split View: Left Makes, Right Models -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px;">
+        
+        <!-- SECTION 1: MANUFACTURERS -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+            <div class="o_form_view" style="margin-bottom: 0;">
+                <div class="o_form_header">
+                    <h3 class="o_form_title" style="display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="plus-circle" class="lucide-icon"></i> 
+                        {% if editing_make %}Edit Make #{{ editing_make.id }}{% else %}Add New Vehicle Make{% endif %}
+                    </h3>
+                </div>
+                <div class="o_form_body" style="padding: 16px 20px;">
+                    <form method="POST" action="{% if editing_make %}{{ url_for('admin.make_edit', id=editing_make.id) }}{% else %}{{ url_for('admin.make_add') }}{% endif %}">
+                        {{ make_form.hidden_tag() if make_form else '' }}
+                        {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>{% endif %}
+                        <div style="display: flex; gap: 10px; align-items: flex-end;">
+                            <div style="flex: 1;">
+                                <label class="o_field_label">MANUFACTURER NAME *</label>
+                                <input type="text" name="name" class="o_field_widget" placeholder="ENTER MANUFACTURER (e.g. TOYOTA, HONDA)..." required value="{{ editing_make.name if editing_make else '' }}">
+                            </div>
+                            <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="{% if editing_make %}Update Make{% else %}Save Make{% endif %}" aria-label="{% if editing_make %}Update Make{% else %}Save Make{% endif %}">
+                                <i data-lucide="save"></i>
+                            </button>
+                            {% if editing_make %}
+                            <a href="{{ url_for('admin.makes') }}" class="pastel-btn-secondary" style="padding: 9px 14px;">Cancel</a>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Makes Table -->
+            <div class="o_list_view">
+                <table class="o_list_table">
+                    <thead class="o_list_header">
+                        <tr>
+                            <th style="width: 80px;">ID</th>
+                            <th>MANUFACTURER NAME</th>
+                            <th style="text-align: right;">ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in makes %}
+                        <tr class="o_list_record">
+                            <td><strong>#{{ m.id }}</strong></td>
+                            <td style="font-weight: 700; color: var(--odoo-primary-dark);">{{ m.name }}</td>
+                            <td style="text-align: right;">
+                                <div class="o_action_btns">
+                                    <a href="{{ url_for('admin.make_edit', id=m.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit Make" aria-label="Edit Make">
+                                        <i data-lucide="pencil"></i>
+                                    </a>
+                                    <form method="POST" action="{{ url_for('admin.make_delete', id=m.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete make {{ m.name }}?')">
+                                        {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>{% endif %}
+                                        <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete Make" aria-label="Delete Make">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" style="text-align: center; color: var(--odoo-text-light);">No vehicle makes configured</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SECTION 2: BRANDS -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+            <div class="o_form_view" style="margin-bottom: 0;">
+                <div class="o_form_header">
+                    <h3 class="o_form_title" style="display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="plus-circle" class="lucide-icon"></i> 
+                        {% if editing_model %}Edit Model #{{ editing_model.id }}{% else %}Add New Vehicle Model{% endif %}
+                    </h3>
+                </div>
+                <div class="o_form_body" style="padding: 16px 20px;">
+                    <form method="POST" action="{% if editing_model %}{{ url_for('admin.model_edit', id=editing_model.id) }}{% else %}{{ url_for('admin.model_add') }}{% endif %}">
+                        {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>{% endif %}
+                        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: flex-end;">
+                            <div>
+                                <label class="o_field_label">PARENT MANUFACTURER *</label>
+                                <select name="make_id" class="o_field_widget" required>
+                                    <option value="">-- SELECT MANUFACTURER --</option>
+                                    {% for m in makes %}
+                                    <option value="{{ m.id }}" {% if editing_model and editing_model.make_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="o_field_label">BRAND NAME *</label>
+                                <input type="text" name="name" class="o_field_widget" placeholder="ENTER BRAND (e.g. COROLLA, CIVIC)..." required value="{{ editing_model.name if editing_model else '' }}">
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="{% if editing_model %}Update Model{% else %}Save Model{% endif %}" aria-label="{% if editing_model %}Update Model{% else %}Save Model{% endif %}">
+                                    <i data-lucide="save"></i>
+                                </button>
+                                {% if editing_model %}
+                                <a href="{{ url_for('admin.makes') }}" class="pastel-btn-secondary" style="padding: 9px 12px;">Cancel</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Models Table -->
+            <div class="o_list_view">
+                <table class="o_list_table">
+                    <thead class="o_list_header">
+                        <tr>
+                            <th style="width: 80px;">ID</th>
+                            <th>BRAND NAME</th>
+                            <th>PARENT MANUFACTURER</th>
+                            <th style="text-align: right;">ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mod in models %}
+                        <tr class="o_list_record">
+                            <td><strong>#{{ mod.id }}</strong></td>
+                            <td style="font-weight: 700; color: var(--odoo-text);">{{ mod.name }}</td>
+                            <td><span class="o_badge o_badge_primary">{{ mod.make.name if mod.make else 'N/A' }}</span></td>
+                            <td style="text-align: right;">
+                                <div class="o_action_btns">
+                                    <a href="{{ url_for('admin.model_edit', id=mod.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit Model" aria-label="Edit Model">
+                                        <i data-lucide="pencil"></i>
+                                    </a>
+                                    <form method="POST" action="{{ url_for('admin.model_delete', id=mod.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete model {{ mod.name }}?')">
+                                        {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>{% endif %}
+                                        <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete Model" aria-label="Delete Model">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" style="text-align: center; color: var(--odoo-text-light);">No vehicle models configured</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

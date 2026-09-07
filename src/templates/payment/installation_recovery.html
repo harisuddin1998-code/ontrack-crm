@@ -1,0 +1,800 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .lucide-icon { width: 16px; height: 16px; display: inline-block; vertical-align: text-bottom; }
+    .ir-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; justify-content: center; align-items: center; padding: 20px; }
+    .ir-modal { background: #ffffff; width: 100%; max-width: 460px; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.18); }
+    .ir-modal.ir-modal-wide { max-width: 640px; }
+    .ir-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 22px; border-bottom: 1px solid #e2e8f0; }
+    .ir-modal-body { padding: 20px 22px; max-height: 70vh; overflow-y: auto; }
+    .ir-modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid #e2e8f0; }
+    .ir-field { margin-bottom: 14px; }
+    .ir-field label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 4px; }
+    .ir-tabs { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    .ir-tab { padding: 8px 16px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; text-decoration: none; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+    .ir-tab.active { background: var(--odoo-primary); color: #fff; border-color: var(--odoo-primary); }
+    .ir-tab .ir-tab-count { background: rgba(0,0,0,0.08); border-radius: 10px; padding: 1px 7px; font-size: 11px; }
+    .ir-tab.active .ir-tab-count { background: rgba(255,255,255,0.25); }
+    .ir-detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+    .ir-detail-row span:first-child { color: #64748b; font-weight: 600; }
+    .ir-followup-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 12.5px; }
+    .ir-followup-item .ir-fu-meta { color: #64748b; font-size: 11px; margin-bottom: 4px; }
+
+    /* How many times this customer has already been chased, carried on the
+       follow-up button now that it has no room for "(3)" beside a word.
+       Anchored to the button corner so it never changes the square's size and
+       the row of actions stays aligned down the table. */
+    .ir_btn_count { position: relative; overflow: visible; }
+    .ir_count {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        border-radius: 8px;
+        background: var(--odoo-primary-dark);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 16px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+    }
+</style>
+
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="hard-drive" style="color: var(--odoo-primary);"></i> Device Recovery
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Device replacement cost recovery &mdash; created automatically from REDO activities. Three layers, same recovery process in each.
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            {# Device Recovery can be held on its own (device_recovery role), and
+               that role does not open the PO payment ledger. Guarded with the
+               same test the sidebar uses, so this screen never offers a way
+               back to a page the viewer would be turned away from. #}
+            {% if current_user.is_payment_recovery() or current_user.is_admin() or current_user.is_manager() %}
+            <a href="{{ url_for('payment.dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left" class="lucide-icon"></i> Installation Payment Recovery
+            </a>
+            {% endif %}
+            <a href="{{ url_for('payment.installation_recovery_followup_report') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="phone-call" class="lucide-icon"></i> Follow-up Report
+            </a>
+            <a href="{{ url_for('payment.installation_recovery_export_excel', status=status, search=search, reason=reason) }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="file-down" class="lucide-icon"></i> Excel
+            </a>
+            <a href="{{ url_for('payment.installation_recovery_export_pdf', status=status, search=search, reason=reason) }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                <i data-lucide="file-text" class="lucide-icon"></i> PDF
+            </a>
+            {% if current_user.is_admin() or current_user.is_manager() or current_user.is_payment_recovery() or current_user.is_device_recovery() %}
+            <button type="button" class="pastel-btn-primary" style="display: inline-flex; align-items: center; gap: 6px;" onclick="document.getElementById('irImportModal').style.display='flex'">
+                <i data-lucide="upload" class="lucide-icon"></i> Bulk Import
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Layers: Power Issue / Device Damage / Device Missing -->
+    <div class="ir-tabs">
+        <a href="{{ url_for('payment.installation_recovery_dashboard', status=status) }}" class="ir-tab {% if not reason %}active{% endif %}">
+            All Layers <span class="ir-tab-count">{{ reason_counts.values()|sum }}</span>
+        </a>
+        {% for r in reason_choices %}
+        <a href="{{ url_for('payment.installation_recovery_dashboard', reason=r, status=status) }}" class="ir-tab {% if reason == r %}active{% endif %}">
+            {{ r }} <span class="ir-tab-count">{{ reason_counts.get(r, 0) }}</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <form method="GET" style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
+        {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+        {% if reason %}<input type="hidden" name="reason" value="{{ reason }}">{% endif %}
+        <input type="text" name="search" value="{{ search }}" placeholder="Search registration or customer..." class="o_field_widget" style="max-width: 300px;">
+        <button type="submit" class="pastel-btn-primary"><i data-lucide="search" class="lucide-icon"></i> Search</button>
+        {% if search %}<a href="{{ url_for('payment.installation_recovery_dashboard', status=status, reason=reason) }}" class="pastel-btn-secondary">Clear</a>{% endif %}
+    </form>
+
+    <div class="o_dashboard_cards" style="grid-template-columns: repeat(4, 1fr);">
+        <a href="{{ url_for('payment.installation_recovery_dashboard', status='PENDING', reason=reason) }}" class="o_dashboard_card" style="text-decoration:none; background: linear-gradient(135deg, #fefce8, #fef9c3); border-left: 4px solid #eab308;">
+            <div class="o_card_header" style="color: #854d0e;">Pending</div>
+            <div class="o_card_value" style="color: #713f12;">{{ stats.pending }}</div>
+        </a>
+        <a href="{{ url_for('payment.installation_recovery_dashboard', status='CONTACTED', reason=reason) }}" class="o_dashboard_card" style="text-decoration:none; background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left: 4px solid #3b82f6;">
+            <div class="o_card_header" style="color: #1e40af;">Contacted</div>
+            <div class="o_card_value" style="color: #1e3a8a;">{{ stats.contacted }}</div>
+        </a>
+        <a href="{{ url_for('payment.installation_recovery_dashboard', status='RECOVERED', reason=reason) }}" class="o_dashboard_card" style="text-decoration:none; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-left: 4px solid #10b981;">
+            <div class="o_card_header" style="color: #15803d;">Recovered</div>
+            <div class="o_card_value" style="color: #166534;">PKR {{ stats.amount_recovered|int }}</div>
+            <div class="o_card_unit">{{ stats.recovered }} charge(s)</div>
+        </a>
+        <a href="{{ url_for('payment.installation_recovery_dashboard', status='LOST', reason=reason) }}" class="o_dashboard_card" style="text-decoration:none; background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left: 4px solid #ef4444;">
+            <div class="o_card_header" style="color: #991b1b;">Outstanding</div>
+            <div class="o_card_value" style="color: #7f1d1d;">PKR {{ stats.amount_outstanding|int }}</div>
+            <div class="o_card_unit">{{ stats.lost }} lost</div>
+        </a>
+    </div>
+
+    {% if status %}
+    <a href="{{ url_for('payment.installation_recovery_dashboard', reason=reason) }}" class="pastel-btn-secondary" style="margin: 15px 0; display: inline-flex; align-items: center; gap: 6px;">
+        <i data-lucide="x" class="lucide-icon"></i> Clear filter ({{ status }})
+    </a>
+    {% endif %}
+
+    <div class="o_list_view" style="margin-top: 15px;">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>Registration</th><th>Customer</th><th>Reason</th><th>Amount</th>
+                    <th>Status</th><th>Assigned Officer</th><th>Payment Status</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in charges %}
+                <tr class="o_list_record">
+                    <td><strong>{{ c.redo_activity.registration_no if c.redo_activity else '-' }}</strong></td>
+                    <td>{{ c.redo_activity.customer_name if c.redo_activity else '-' }}</td>
+                    <td><span class="o_badge o_badge_info">{{ c.reason }}</span></td>
+                    <td>PKR {{ c.amount|int }}</td>
+                    <td>
+                        <span class="o_badge {% if c.status == 'RECOVERED' %}o_badge_success{% elif c.status == 'CONTACTED' %}o_badge_info{% elif c.status == 'LOST' %}o_badge_secondary{% else %}o_badge_warning{% endif %}">
+                            {{ c.status }}
+                        </span>
+                    </td>
+                    <td>{{ c.assigned_officer.name if c.assigned_officer else 'Unassigned' }}</td>
+                    <td>
+                        <span class="o_badge {% if c.status == 'RECOVERED' %}o_badge_success{% else %}o_badge_secondary{% endif %}">
+                            {{ 'Received' if c.status == 'RECOVERED' else 'Pending' }}
+                        </span>
+                    </td>
+                    {# Icon actions, matching the row-action squares used across
+                       the CRM. Three differently-sized pill buttons next to one
+                       icon square made every row a different width and pushed
+                       the column wide; four squares of one size line up down
+                       the table. The label each one replaces is kept as the
+                       title and the accessible name, and colour carries the
+                       meaning: green takes money, lavender changes the record
+                       (log a call, move it to another officer), red writes the
+                       charge off, blue just looks. #}
+                    <td class="o_action_col" style="white-space: nowrap;">
+                        {% set reg_no = (c.redo_activity.registration_no if c.redo_activity else '')|e %}
+                        <div class="o_action_btns">
+                            {% if c.status in ('PENDING', 'CONTACTED') %}
+                            <button type="button" class="o_icon_btn o_icon_btn_add"
+                                onclick="openPaymentModal({{ c.id }}, '{{ reg_no }}', {{ c.amount }})"
+                                title="Record a payment" aria-label="Record a payment">
+                                <i data-lucide="banknote"></i>
+                            </button>
+
+                            {# The follow-up count is the one thing a tooltip
+                               cannot carry - how many times this customer has
+                               already been chased changes whether you chase
+                               them again - so it stays on the button. #}
+                            <button type="button" class="o_icon_btn o_icon_btn_edit ir_btn_count"
+                                onclick="openFollowupModal({{ c.id }}, '{{ reg_no }}')"
+                                title="Follow up{% if c.followups and c.followups|length %} ({{ c.followups|length }} so far){% endif %}"
+                                aria-label="Follow up{% if c.followups and c.followups|length %}, {{ c.followups|length }} so far{% endif %}">
+                                <i data-lucide="phone-call"></i>
+                                {% if c.followups and c.followups|length %}
+                                <span class="ir_count" aria-hidden="true">{{ c.followups|length }}</span>
+                                {% endif %}
+                            </button>
+
+                            {% if current_user.is_admin() or current_user.is_manager() %}
+                            <button type="button" class="o_icon_btn o_icon_btn_delete"
+                                onclick="openLostModal({{ c.id }})"
+                                title="Write this charge off as lost" aria-label="Write this charge off as lost">
+                                <i data-lucide="circle-slash"></i>
+                            </button>
+                            {% endif %}
+                            {% endif %}
+
+                            {% if officers %}
+                            <button type="button" class="o_icon_btn o_icon_btn_edit"
+                                onclick="openAssignModal({{ c.id }}, '{{ reg_no }}', {{ c.assigned_officer_id or 0 }})"
+                                title="Assign to another officer" aria-label="Assign to another officer">
+                                <i data-lucide="user-cog"></i>
+                            </button>
+                            {% endif %}
+
+                            <button type="button" class="o_icon_btn o_icon_btn_view"
+                                onclick="openDetailsModal({{ c.id }})" title="View details"
+                                aria-label="View details"><i data-lucide="eye"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align: center; color: var(--odoo-text-light); padding: 30px;">No Installation Recovery charges{% if status %} with status {{ status }}{% endif %}{% if reason %} in {{ reason }}{% endif %}.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pay Modal -->
+<div class="ir-modal-overlay" id="irPaymentModal">
+    <div class="ir-modal">
+        <div class="ir-modal-header">
+            <h3 style="margin:0; font-size:16px;"><i data-lucide="banknote" class="lucide-icon"></i> Record Payment &mdash; <span id="irPayReg"></span></h3>
+            <button type="button" onclick="closePaymentModal()" style="background:none; border:none; font-size:22px; cursor:pointer;">&times;</button>
+        </div>
+        <form id="irPaymentForm" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="ir-modal-body">
+                <div class="ir-field">
+                    <label>Amount (PKR)</label>
+                    <input type="number" step="0.01" name="amount" id="irPayAmount" class="o_field_widget" readonly>
+                </div>
+                <div class="ir-field">
+                    <label>Payment Method</label>
+                    <select name="payment_method" id="irPayMethod" class="o_field_widget" onchange="irToggleFields()">
+                        <option value="ONLINE">Online Payment</option>
+                        <option value="CASH">Cash Payment</option>
+                        <option value="CHEQUE">Cheque</option>
+                    </select>
+                </div>
+                <div class="ir-field" id="irReferenceGroup">
+                    <label id="irReferenceLabel">Reference No.</label>
+                    <input type="text" name="reference" id="irReference" class="o_field_widget">
+                </div>
+                <div class="ir-field" id="irProofGroup" style="display:none;">
+                    <label>Proof of Payment (JPG/PNG) <span style="color:#dc2626;">*</span></label>
+                    <input type="file" name="proof_file" id="irProofFile" class="o_field_widget" accept=".jpg,.jpeg,.png">
+                </div>
+                <div class="ir-field">
+                    <label>Notes</label>
+                    <textarea name="notes" class="o_field_widget" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="ir-modal-footer">
+                <button type="button" class="pastel-btn-secondary" onclick="closePaymentModal()">Cancel</button>
+                <button type="submit" class="pastel-btn-primary">Submit</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lost Modal -->
+<div class="ir-modal-overlay" id="irLostModal">
+    <div class="ir-modal">
+        <div class="ir-modal-header">
+            <h3 style="margin:0; font-size:16px;"><i data-lucide="ban" class="lucide-icon"></i> Mark as Lost</h3>
+            <button type="button" onclick="closeLostModal()" style="background:none; border:none; font-size:22px; cursor:pointer;">&times;</button>
+        </div>
+        <form id="irLostForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="ir-modal-body">
+                <div class="ir-field">
+                    <label>Reason (required)</label>
+                    <textarea name="reason" class="o_field_widget" rows="3" required placeholder="e.g. Customer unreachable, unrecoverable, written off"></textarea>
+                </div>
+            </div>
+            <div class="ir-modal-footer">
+                <button type="button" class="pastel-btn-secondary" onclick="closeLostModal()">Cancel</button>
+                <button type="submit" class="pastel-btn-primary">Mark as Lost</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Assign Officer Modal (supervisors only) -->
+{% if officers %}
+<div class="ir-modal-overlay" id="irAssignModal">
+    <div class="ir-modal">
+        <div class="ir-modal-header">
+            <h3 style="margin:0; font-size:16px;"><i data-lucide="user-cog" class="lucide-icon"></i> Assign Officer &mdash; <span id="irAssignReg"></span></h3>
+            <button type="button" onclick="closeAssignModal()" style="background:none; border:none; font-size:22px; cursor:pointer;">&times;</button>
+        </div>
+        <form id="irAssignForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="ir-modal-body">
+                <div class="ir-field">
+                    <label>Device Recovery Officer</label>
+                    <select name="officer_id" id="irAssignOfficer" class="o_field_widget">
+                        <option value="">Unassigned</option>
+                        {% for o in officers %}
+                        <option value="{{ o.id }}">{{ o.name or o.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <small style="color: var(--odoo-text-light);">
+                        The charge moves to this officer's list and off the current one.
+                        Only active Device Recovery officers are listed.
+                    </small>
+                </div>
+            </div>
+            <div class="ir-modal-footer">
+                <button type="button" class="pastel-btn-secondary" onclick="closeAssignModal()">Cancel</button>
+                <button type="submit" class="o_icon_btn o_icon_btn_save" title="Save" aria-label="Save">
+                    <i data-lucide="save"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<style>
+/* The follow-up recording form. Sections rather than one long column of
+   inputs: the officer reads the contact panel, dials, then writes down what
+   happened - three different jobs that should not look like one list. */
+.ir-fu-section { margin-bottom: 18px; }
+.ir-fu-section:last-child { margin-bottom: 0; }
+.ir-fu-section-title {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--odoo-text-light);
+    padding-bottom: 6px; margin-bottom: 10px;
+    border-bottom: 1px solid var(--odoo-border, #e2e8f0);
+}
+.ir-fu-section-title i, .ir-fu-section-title svg { width: 14px; height: 14px; }
+.ir-fu-panel {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 12px;
+}
+.ir-fu-headline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ir-fu-customer { font-size: 15px; font-weight: 600; color: #0f172a; }
+.ir-fu-amount { color: var(--odoo-text-light); font-size: 13px; }
+.ir-fu-others { margin-top: 6px; font-size: 12px; color: #334155; }
+.ir-fu-muted { color: #94a3b8; font-size: 12px; margin: 0; }
+.ir-fu-req { color: #dc2626; font-weight: 400; }
+.ir-fu-warn {
+    margin: 10px 0 0 0; padding: 8px 10px; border-radius: 5px;
+    background: #fef9c3; border: 1px solid #fde68a; color: #854d0e; font-size: 12.5px;
+}
+
+/* One row per number: pick it, dial it, or WhatsApp it. */
+.ir-fu-numbers { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.ir-fu-number {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border: 1px solid transparent; border-radius: 5px;
+    background: #fff;
+}
+.ir-fu-number.selected { border-color: var(--odoo-primary); background: #eef2ff; }
+.ir-fu-pick { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; margin: 0; }
+.ir-fu-num-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em;
+    color: #94a3b8; min-width: 150px;
+}
+.ir-fu-num { font-size: 13.5px; color: #0f172a; font-weight: 500; }
+.ir-fu-call, .ir-fu-wa {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; text-decoration: none; padding: 3px 8px; border-radius: 4px;
+}
+.ir-fu-call { color: #0f766e; background: #ccfbf1; }
+.ir-fu-wa { color: #166534; background: #dcfce7; }
+.ir-fu-call i, .ir-fu-call svg, .ir-fu-wa i, .ir-fu-wa svg { width: 12px; height: 12px; }
+
+.ir-fu-history {
+    margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 12.5px;
+}
+.ir-fu-due { color: #b5502e; margin-top: 4px; }
+
+/* Two columns for the short conversation fields; one on a narrow screen. */
+.ir-fu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .ir-fu-grid { grid-template-columns: 1fr; } }
+</style>
+
+<!-- Follow Up Modal
+     The recording form. The contact panel at the top is the point: every
+     number the CRM holds for the vehicle - pulled from monitoring, the
+     service record, the purchase order and the AMC roster - so a customer who
+     does not answer on the one number the REDO activity carried can still be
+     reached. Picking a number to dial also records which one was tried, so
+     the next officer knows what has already been rung. -->
+<div class="ir-modal-overlay" id="irFollowupModal">
+    <div class="ir-modal ir-modal-wide">
+        <div class="ir-modal-header">
+            <h3 style="margin:0; font-size:16px;"><i data-lucide="phone-call" class="lucide-icon"></i> Record Follow-Up &mdash; <span id="irFuReg"></span></h3>
+            <button type="button" onclick="closeFollowupModal()" style="background:none; border:none; font-size:22px; cursor:pointer;">&times;</button>
+        </div>
+        <form id="irFollowupForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="ir-modal-body">
+
+                <!-- 1. Who you are calling -->
+                <div class="ir-fu-section">
+                    <div class="ir-fu-section-title"><i data-lucide="user" class="lucide-icon"></i> Customer &amp; Contact Details</div>
+                    <div id="irFuContactPanel" class="ir-fu-panel">
+                        <p class="ir-fu-muted">Loading contact details&hellip;</p>
+                    </div>
+                </div>
+
+                <!-- 2. The conversation -->
+                <div class="ir-fu-section">
+                    <div class="ir-fu-section-title"><i data-lucide="message-square" class="lucide-icon"></i> The Conversation</div>
+                    <div class="ir-fu-grid">
+                        <div class="ir-field">
+                            <label>Channel</label>
+                            <select name="conversation_type" class="o_field_widget">
+                                <option value="PHONE_CALL">Phone Call</option>
+                                <option value="WHATSAPP">WhatsApp Message</option>
+                            </select>
+                        </div>
+                        <div class="ir-field">
+                            <label>Direction</label>
+                            <select name="direction" class="o_field_widget">
+                                <option value="OUT">Outgoing</option>
+                                <option value="IN">Incoming</option>
+                            </select>
+                        </div>
+                        <div class="ir-field">
+                            <label>Spoke To</label>
+                            <input type="text" name="contact_person" id="irFuPerson" class="o_field_widget"
+                                placeholder="Name of the person on the line">
+                        </div>
+                        <div class="ir-field">
+                            <label>Number Called</label>
+                            <input type="text" name="contact_number" id="irFuNumber" class="o_field_widget"
+                                placeholder="Pick a number above, or type one">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. What came of it -->
+                <div class="ir-fu-section">
+                    <div class="ir-fu-section-title"><i data-lucide="clipboard-check" class="lucide-icon"></i> Outcome</div>
+                    <div class="ir-field">
+                        <label>What was said <span class="ir-fu-req">(required)</span></label>
+                        <textarea name="summary" class="o_field_widget" rows="3" required
+                            placeholder="e.g. Customer says he will pay by Friday; asked for the account details again"></textarea>
+                    </div>
+                    <div class="ir-field">
+                        <label>Action Taken</label>
+                        <textarea name="action_taken" class="o_field_widget" rows="2"
+                            placeholder="e.g. Sent bank details on WhatsApp"></textarea>
+                    </div>
+                </div>
+
+                <!-- 4. What happens next -->
+                <div class="ir-fu-section">
+                    <div class="ir-fu-section-title"><i data-lucide="calendar-clock" class="lucide-icon"></i> Next Step</div>
+                    <div class="ir-field">
+                        <label>Call Back On (optional)</label>
+                        <input type="date" name="follow_up_date" class="o_field_widget" style="max-width: 220px;">
+                        <small class="ir-fu-muted">Leave empty if nothing more is due.</small>
+                    </div>
+                </div>
+
+            </div>
+            <div class="ir-modal-footer">
+                <button type="button" class="pastel-btn-secondary" onclick="closeFollowupModal()">Cancel</button>
+                <button type="submit" class="o_icon_btn o_icon_btn_save" title="Save follow-up" aria-label="Save follow-up">
+                    <i data-lucide="save"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Details Modal -->
+<div class="ir-modal-overlay" id="irDetailsModal">
+    <div class="ir-modal ir-modal-wide">
+        <div class="ir-modal-header">
+            <h3 style="margin:0; font-size:16px;"><i data-lucide="file-text" class="lucide-icon"></i> Charge Details</h3>
+            <button type="button" onclick="closeDetailsModal()" style="background:none; border:none; font-size:22px; cursor:pointer;">&times;</button>
+        </div>
+        <div class="ir-modal-body" id="irDetailsBody">
+            <p style="color:#64748b; font-size:13px;">Loading&hellip;</p>
+        </div>
+        <div class="ir-modal-footer">
+            <button type="button" class="pastel-btn-secondary" onclick="closeDetailsModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Import Modal -->
+<div class="ir-modal-overlay" id="irImportModal">
+    <div class="ir-modal">
+        <div class="ir-modal-header">
+            <h3 style="margin:0; font-size:16px;"><i data-lucide="upload" class="lucide-icon"></i> Bulk Import (Excel)</h3>
+            <button type="button" onclick="document.getElementById('irImportModal').style.display='none'" style="background:none; border:none; font-size:22px; cursor:pointer;">&times;</button>
+        </div>
+        <form id="irImportForm" onsubmit="submitImport(event)">
+            <div class="ir-modal-body">
+                <p style="font-size: 12.5px; color: #64748b;">
+                    For Device Missing and Power Issue sheets only. Columns: SCHEDULED_DATE, RATES, CUSTOMER_NAME,
+                    CUSTOMER_CONTACT, SALE_PERSON, REGISTRATION_NO, MAKE, MODEL, YEAR, COLOR, CHASSIS_NO, ENGINE_NO,
+                    DEVICE_TYPE, DEVICE_LOCATION, OLD_IMEI_NO, OLD_SIM_NO, NEW_DEVICE, NEW_SIM, CITY, LAST LOCATION,
+                    TECHNICIAN_ASSIGNED, TESTED_BY, REMARKS, RESOLUTION_STATUS, CREATED_AT &mdash; matched by column
+                    header, order doesn't matter.
+                </p>
+                <div class="ir-field">
+                    <label>Reason for this file (required)</label>
+                    <select id="irImportReason" class="o_field_widget" required>
+                        <option value="">-- Select reason --</option>
+                        <option value="Device Missing">Device Missing</option>
+                        <option value="Power Issue">Power Issue</option>
+                    </select>
+                </div>
+                <div class="ir-field">
+                    <input type="file" id="irImportFile" class="o_field_widget" accept=".xlsx,.xls" required>
+                </div>
+                <div id="irImportResult"></div>
+            </div>
+            <div class="ir-modal-footer">
+                <button type="button" class="pastel-btn-secondary" onclick="document.getElementById('irImportModal').style.display='none'">Cancel</button>
+                <button type="submit" class="pastel-btn-primary">Upload</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function submitImport(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('irImportFile');
+    const reasonSelect = document.getElementById('irImportReason');
+    if (!fileInput.files.length) return;
+    if (!reasonSelect.value) { alert('Select a reason for this file.'); return; }
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('reason', reasonSelect.value);
+    const resultDiv = document.getElementById('irImportResult');
+    resultDiv.innerHTML = '<p style="font-size:12px;color:#64748b;">Uploading&hellip;</p>';
+    fetch('{{ url_for("payment.installation_recovery_import_excel") }}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'},
+        body: formData
+    }).then(r => r.json()).then(r => {
+        if (!r.success) {
+            resultDiv.innerHTML = '<p style="color:#dc2626; font-size:13px;">' + (r.message || 'Import failed.') + '</p>';
+            return;
+        }
+        let html = '<p style="font-weight:700; font-size:13px;">' + r.imported + ' imported, ' + r.skipped + ' skipped</p>';
+        if (r.errors && r.errors.length) {
+            html += '<div style="max-height:180px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:6px; padding:8px; font-size:11.5px;">';
+            r.errors.forEach(function(err) {
+                html += '<div>Row ' + err.row + ': ' + err.reason + '</div>';
+            });
+            html += '</div>';
+        }
+        resultDiv.innerHTML = html;
+        if (r.imported > 0) setTimeout(function() { window.location.reload(); }, 1500);
+    }).catch(function() {
+        resultDiv.innerHTML = '<p style="color:#dc2626; font-size:13px;">Upload failed.</p>';
+    });
+}
+
+function openPaymentModal(chargeId, regNo, amount) {
+    document.getElementById('irPaymentForm').action = '/payment/installation-recovery/' + chargeId + '/record-payment';
+    document.getElementById('irPayReg').textContent = regNo;
+    document.getElementById('irPayAmount').value = amount;
+    document.getElementById('irPayMethod').value = 'ONLINE';
+    document.getElementById('irReference').value = '';
+    document.getElementById('irProofFile').value = '';
+    irToggleFields();
+    document.getElementById('irPaymentModal').style.display = 'flex';
+}
+function closePaymentModal() { document.getElementById('irPaymentModal').style.display = 'none'; }
+function irToggleFields() {
+    var method = document.getElementById('irPayMethod').value;
+    document.getElementById('irProofGroup').style.display = method === 'ONLINE' ? 'block' : 'none';
+    document.getElementById('irProofFile').required = method === 'ONLINE';
+    document.getElementById('irReferenceLabel').textContent = method === 'CHEQUE' ? 'Cheque No.' : (method === 'ONLINE' ? 'Transaction ID' : 'Reference No.');
+}
+document.getElementById('irPaymentForm').addEventListener('submit', function(e) {
+    var method = document.getElementById('irPayMethod').value;
+    if (method === 'ONLINE' && !document.getElementById('irProofFile').files.length) {
+        e.preventDefault();
+        alert('Proof of payment is required for online payments.');
+    }
+});
+
+function openLostModal(chargeId) {
+    document.getElementById('irLostForm').action = '/payment/installation-recovery/' + chargeId + '/lost';
+    document.getElementById('irLostModal').style.display = 'flex';
+}
+function closeLostModal() { document.getElementById('irLostModal').style.display = 'none'; }
+
+function openAssignModal(chargeId, regNo, currentOfficerId) {
+    document.getElementById('irAssignForm').action =
+        '/payment/installation-recovery/' + chargeId + '/assign';
+    document.getElementById('irAssignReg').textContent = regNo;
+    // Preselect who holds it now, so the dropdown opens showing the truth
+    // rather than "Unassigned" for a charge that is assigned.
+    document.getElementById('irAssignOfficer').value = currentOfficerId ? String(currentOfficerId) : '';
+    document.getElementById('irAssignModal').style.display = 'flex';
+}
+function closeAssignModal() { document.getElementById('irAssignModal').style.display = 'none'; }
+
+function openFollowupModal(chargeId, regNo) {
+    var form = document.getElementById('irFollowupForm');
+    form.action = '/payment/installation-recovery/' + chargeId + '/followup';
+    form.reset();
+    document.getElementById('irFuReg').textContent = regNo;
+    var panel = document.getElementById('irFuContactPanel');
+    panel.innerHTML = '<p class="ir-fu-muted">Loading contact details&hellip;</p>';
+    document.getElementById('irFollowupModal').style.display = 'flex';
+
+    fetch('/payment/installation-recovery/' + chargeId + '/contacts')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success) {
+                panel.innerHTML = '<p class="ir-fu-warn">' +
+                    escapeHtml(d.message || 'Could not load contact details.') + '</p>';
+                return;
+            }
+            panel.innerHTML = buildContactPanel(d);
+            // The customer is the default person spoken to; the officer
+            // overwrites it when somebody else picks up.
+            document.getElementById('irFuPerson').value = d.customer_name || '';
+            if (d.contacts.length) { selectFollowupNumber(d.contacts[0].number); }
+            if (window.lucide) { lucide.createIcons(); }
+        })
+        .catch(function() {
+            panel.innerHTML = '<p class="ir-fu-warn">Could not load contact details.</p>';
+        });
+}
+
+function buildContactPanel(d) {
+    var html = '<div class="ir-fu-headline">' +
+        '<span class="ir-fu-customer">' + escapeHtml(d.customer_name || 'Unknown customer') + '</span>' +
+        '<span class="o_badge o_badge_info">' + escapeHtml(d.reason || '') + '</span>' +
+        '<span class="ir-fu-amount">PKR ' + Math.round(d.amount || 0).toLocaleString() + ' due</span>' +
+        '</div>';
+
+    // Other people on file for this vehicle - the emergency contact or the
+    // account holder is often the one who actually answers.
+    var others = (d.names || []).filter(function(p) { return p.label !== 'Customer'; });
+    if (others.length) {
+        html += '<div class="ir-fu-others">Also on file: ' + others.map(function(p) {
+            return escapeHtml(p.name) + ' <span class="ir-fu-muted">(' + escapeHtml(p.label) + ')</span>';
+        }).join(' &middot; ') + '</div>';
+    }
+
+    if (!d.contacts.length) {
+        html += '<p class="ir-fu-warn">No number on record for this vehicle. ' +
+                'It cannot be recovered by phone until one is found.</p>';
+    } else {
+        html += '<div class="ir-fu-numbers">';
+        d.contacts.forEach(function(n) {
+            var safe = escapeHtml(n.number);
+            html += '<div class="ir-fu-number" data-number="' + safe + '">' +
+                '<label class="ir-fu-pick">' +
+                    '<input type="radio" name="ir_fu_pick" value="' + safe + '" ' +
+                        'onchange="selectFollowupNumber(this.value)">' +
+                    '<span class="ir-fu-num-label">' + escapeHtml(n.label) + '</span>' +
+                    '<span class="ir-fu-num">' + safe + '</span>' +
+                '</label>' +
+                '<a class="ir-fu-call" href="tel:' + safe + '" ' +
+                   'onclick="selectFollowupNumber(\'' + safe + '\')" title="Dial this number">' +
+                   '<i data-lucide="phone"></i> Call</a>' +
+                '<a class="ir-fu-wa" href="https://wa.me/' + waNumber(n.number) + '" target="_blank" ' +
+                   'rel="noopener" onclick="selectFollowupNumber(\'' + safe + '\')" title="Open WhatsApp">' +
+                   '<i data-lucide="message-circle"></i></a>' +
+                '</div>';
+        });
+        html += '</div>';
+    }
+
+    // What has already been tried, so the officer does not repeat it.
+    if (d.attempts) {
+        html += '<div class="ir-fu-history">' +
+            '<strong>' + d.attempts + '</strong> previous attempt' + (d.attempts === 1 ? '' : 's');
+        if (d.last_attempt) {
+            html += ' &middot; last on ' + escapeHtml(d.last_attempt.date || '') +
+                    ' (' + escapeHtml(d.last_attempt.channel || '') + ')';
+            if (d.last_attempt.number) {
+                html += ' to ' + escapeHtml(d.last_attempt.number);
+            }
+            if (d.last_attempt.summary) {
+                html += '<div class="ir-fu-muted">' + escapeHtml(d.last_attempt.summary) + '</div>';
+            }
+        }
+        if (d.callback_due) {
+            html += '<div class="ir-fu-due">Callback was due ' + escapeHtml(d.callback_due) + '</div>';
+        }
+        html += '</div>';
+    } else {
+        html += '<div class="ir-fu-history ir-fu-muted">No follow-up logged yet.</div>';
+    }
+    return html;
+}
+
+/* Selecting a number fills the form field, so the log records which line was
+   actually tried rather than leaving the next officer to guess. */
+function selectFollowupNumber(number) {
+    document.getElementById('irFuNumber').value = number;
+    document.querySelectorAll('#irFuContactPanel .ir-fu-number').forEach(function(row) {
+        var picked = row.getAttribute('data-number') === number;
+        row.classList.toggle('selected', picked);
+        var radio = row.querySelector('input[type=radio]');
+        if (radio) { radio.checked = picked; }
+    });
+}
+
+/* wa.me wants digits only, in international form. A local 03xx number is the
+   same line as +92 3xx, so the leading zero becomes the country code. */
+function waNumber(number) {
+    var digits = String(number || '').replace(/\D/g, '');
+    if (digits.indexOf('92') === 0) { return digits; }
+    if (digits.indexOf('0') === 0) { return '92' + digits.slice(1); }
+    return digits;
+}
+
+function closeFollowupModal() { document.getElementById('irFollowupModal').style.display = 'none'; }
+
+function openDetailsModal(chargeId) {
+    const body = document.getElementById('irDetailsBody');
+    body.innerHTML = '<p style="color:#64748b; font-size:13px;">Loading&hellip;</p>';
+    document.getElementById('irDetailsModal').style.display = 'flex';
+    fetch('/payment/installation-recovery/' + chargeId + '/details')
+        .then(r => r.json())
+        .then(r => {
+            if (!r.success) {
+                body.innerHTML = '<p style="color:#dc2626; font-size:13px;">' + (r.message || 'Could not load details.') + '</p>';
+                return;
+            }
+            const c = r.charge;
+            let html = '<div style="margin-bottom:16px;">';
+            html += rowHtml('Registration', c.registration_no || '-');
+            html += rowHtml('Customer', c.customer_name || '-');
+            // Every number on record, each dialable, rather than the single
+            // one the REDO activity carried.
+            if (r.contacts && r.contacts.length) {
+                var dials = r.contacts.map(function(n) {
+                    return '<a href="tel:' + escapeHtml(n.number) + '">' + escapeHtml(n.number) +
+                           '</a> <span style="color:#94a3b8; font-size:11px;">(' + escapeHtml(n.label) + ')</span>';
+                }).join('<br>');
+                html += rowHtml('Contact', dials);
+            } else {
+                html += rowHtml('Contact', c.customer_contact || 'No number on record');
+            }
+            if (r.contact_names && r.contact_names.length > 1) {
+                html += rowHtml('Also On File', r.contact_names.slice(1).map(function(p) {
+                    return escapeHtml(p.name) + ' <span style="color:#94a3b8; font-size:11px;">(' +
+                           escapeHtml(p.label) + ')</span>';
+                }).join('<br>'));
+            }
+            html += rowHtml('Reason', c.reason);
+            html += rowHtml('Amount', 'PKR ' + Math.round(c.amount).toLocaleString());
+            html += rowHtml('Status', c.status);
+            html += rowHtml('Assigned Officer', c.assigned_officer_name);
+            if (c.status === 'RECOVERED') {
+                html += rowHtml('Payment Method', c.payment_method || '-');
+                html += rowHtml('Reference', c.payment_reference || '-');
+                html += rowHtml('Recovered At', c.recovered_at || '-');
+                if (c.has_proof) {
+                    html += rowHtml('Proof', '<a href="' + c.proof_url + '" target="_blank">View Proof</a>');
+                }
+            }
+            if (c.notes) html += rowHtml('Notes', c.notes);
+            html += '</div>';
+
+            html += '<h4 style="margin:0 0 10px 0; font-size:13px; color:#334155;">Follow-up History (' + r.followups.length + ')</h4>';
+            if (!r.followups.length) {
+                html += '<p style="color:#94a3b8; font-size:12.5px;">No follow-up calls logged yet.</p>';
+            } else {
+                r.followups.forEach(function(f) {
+                    html += '<div class="ir-followup-item">';
+                    html += '<div class="ir-fu-meta">' + (f.date || '') + ' &middot; ' + f.channel + ' (' + f.direction + ') &middot; by ' + (f.recorded_by_name || 'N/A') + '</div>';
+                    html += '<div>' + escapeHtml(f.summary || '') + '</div>';
+                    if (f.action_taken) html += '<div style="color:#64748b; margin-top:4px;">Action: ' + escapeHtml(f.action_taken) + '</div>';
+                    if (f.follow_up_date) html += '<div style="color:#b5502e; margin-top:4px;">Next follow-up: ' + f.follow_up_date + '</div>';
+                    html += '</div>';
+                });
+            }
+            body.innerHTML = html;
+        })
+        .catch(function() {
+            body.innerHTML = '<p style="color:#dc2626; font-size:13px;">Could not load details.</p>';
+        });
+}
+function closeDetailsModal() { document.getElementById('irDetailsModal').style.display = 'none'; }
+function rowHtml(label, value) {
+    return '<div class="ir-detail-row"><span>' + label + '</span><span>' + value + '</span></div>';
+}
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

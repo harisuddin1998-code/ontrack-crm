@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="boxes" style="color: var(--odoo-primary);"></i> Stock &amp; Accessories
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Non-device consumables (tape, relays, sensors, converters) and old stock issue &mdash; entered monthly, separate from GPS device stock.
+            </p>
+        </div>
+        <a href="{{ url_for('inventory.dashboard') }}" class="pastel-btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="package" class="lucide-icon"></i> Device Stock
+        </a>
+    </div>
+
+    {# Arrived from the dashboard's Stock Shortages card. Say so, or a
+       near-empty sheet reads as missing data rather than as a filter. #}
+    {% if short_only %}
+    <div class="o_alert o_alert_warning" style="margin-bottom: 16px;">
+        <i data-lucide="alert-triangle"></i>
+        Showing only items that have run short this period.
+        <a href="{{ url_for('inventory.stock', period=period, issue_date=issue_date.isoformat()) }}">Show all
+            stock</a>
+    </div>
+    {% endif %}
+
+    <form method="GET" style="display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+        <label style="font-size: 13px; font-weight: 600; color: var(--odoo-text-muted);">Period (month):</label>
+        <input type="month" name="period" value="{{ period }}" class="o_field_widget" style="max-width: 160px;">
+        <input type="hidden" name="issue_date" value="{{ issue_date.isoformat() }}">
+        {% if short_only %}<input type="hidden" name="short" value="1">{% endif %}
+        <button type="submit" class="pastel-btn-primary"><i data-lucide="filter" class="lucide-icon"></i> View</button>
+    </form>
+
+    <datalist id="accessoryNames">
+        <option value="TAPE IN PCS"><option value="TIE CLIP"><option value="DOUBLE TAPE">
+        <option value="RELAY 12V (New)"><option value="RELAY 12V (Old)">
+        <option value="RELAY 24V (New)"><option value="RELAY 24V (Old)">
+        <option value="RELAY GRIP (New)"><option value="RELAY GRIP (Old)">
+        <option value="SENSOR (New)"><option value="SENSOR (Old)">
+        <option value="CONVERTER 24v TO 12v (New)"><option value="CONVERTER 24v TO 12v (Old)">
+        <option value="OBD CONVERTER (New)"><option value="OBD CONVERTER (Old)">
+        <option value="TRANSPARENT TAPE"><option value="PAPER TAPE">
+    </datalist>
+    <datalist id="oldStockNames">
+        <option value="BT-900"><option value="VG-03"><option value="TELTONIKA"><option value="C-32">
+    </datalist>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+        <!-- Accessories -->
+        <div class="o_list_view">
+            <div class="o_list_header" style="background: var(--odoo-primary-soft); padding: 15px 20px; border-radius: 8px 8px 0 0; border-bottom: 2px solid var(--odoo-primary-light);">
+                <h3 style="margin: 0; color: var(--odoo-primary-dark);"><i data-lucide="wrench" class="lucide-icon"></i> Accessories &mdash; {{ period }}</h3>
+            </div>
+            <table class="o_list_table">
+                <thead><tr><th>Item</th><th>Received</th><th>Issued</th><th>Remaining</th><th></th></tr></thead>
+                <tbody>
+                    {% for item in accessories %}
+                    <tr class="o_list_record">
+                        <form method="POST" action="{{ url_for('inventory.stock_item_upsert') }}">
+                        <input type="hidden" name="name" value="{{ item.name }}">
+                        <input type="hidden" name="category" value="ACCESSORY">
+                        <input type="hidden" name="period" value="{{ period }}">
+                        <td>{{ item.name }}</td>
+                        <td><input type="number" step="0.01" name="total_received" value="{{ item.total_received }}" class="o_field_widget" style="width: 80px;"></td>
+                        <td><input type="number" step="0.01" name="total_issued" value="{{ item.total_issued }}" class="o_field_widget" style="width: 80px;"></td>
+                        <td><strong style="color: {{ '#dc2626' if item.get_remaining() < 0 else '#166534' }};">{{ item.get_remaining() }}</strong></td>
+                        <td style="white-space: nowrap;">
+                            <button type="submit" class="o_icon_btn o_icon_btn_save" title="Update {{ item.name }}" aria-label="Update {{ item.name }}"><i data-lucide="save"></i></button>
+                        </td>
+                        </form>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" style="text-align: center; color: var(--odoo-text-light);">No accessories logged for {{ period }} yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <form method="POST" action="{{ url_for('inventory.stock_item_upsert') }}" style="display: flex; gap: 6px; padding: 12px 20px; flex-wrap: wrap; align-items: center;">
+                <input type="hidden" name="category" value="ACCESSORY">
+                <input type="hidden" name="period" value="{{ period }}">
+                <input type="text" name="name" list="accessoryNames" placeholder="Item name" required class="o_field_widget" style="flex: 1; min-width: 140px;">
+                <input type="number" step="0.01" name="total_received" placeholder="Received" required class="o_field_widget" style="width: 90px;">
+                <input type="number" step="0.01" name="total_issued" placeholder="Issued" required class="o_field_widget" style="width: 90px;">
+                <button type="submit" class="o_icon_btn o_icon_btn_save" title="Add Accessory" aria-label="Add Accessory"><i data-lucide="save"></i></button>
+            </form>
+        </div>
+
+        <!-- Old Stock Issue -->
+        <div class="o_list_view">
+            <div class="o_list_header" style="background: var(--odoo-primary-soft); padding: 15px 20px; border-radius: 8px 8px 0 0; border-bottom: 2px solid var(--odoo-primary-light);">
+                <h3 style="margin: 0; color: var(--odoo-primary-dark);"><i data-lucide="archive" class="lucide-icon"></i> Old Stock Issue &mdash; {{ period }}</h3>
+            </div>
+            <table class="o_list_table">
+                <thead><tr><th>Item</th><th>Received</th><th>Issued</th><th>Remaining</th><th></th></tr></thead>
+                <tbody>
+                    {% for item in old_stock %}
+                    <tr class="o_list_record">
+                        <form method="POST" action="{{ url_for('inventory.stock_item_upsert') }}">
+                        <input type="hidden" name="name" value="{{ item.name }}">
+                        <input type="hidden" name="category" value="OLD_STOCK">
+                        <input type="hidden" name="period" value="{{ period }}">
+                        <td>{{ item.name }}</td>
+                        <td><input type="number" step="0.01" name="total_received" value="{{ item.total_received }}" class="o_field_widget" style="width: 80px;"></td>
+                        <td><input type="number" step="0.01" name="total_issued" value="{{ item.total_issued }}" class="o_field_widget" style="width: 80px;"></td>
+                        <td><strong style="color: {{ '#dc2626' if item.get_remaining() < 0 else '#166534' }};">{{ item.get_remaining() }}</strong></td>
+                        <td style="white-space: nowrap;">
+                            <button type="submit" class="o_icon_btn o_icon_btn_save" title="Update {{ item.name }}" aria-label="Update {{ item.name }}"><i data-lucide="save"></i></button>
+                        </td>
+                        </form>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" style="text-align: center; color: var(--odoo-text-light);">No old stock logged for {{ period }} yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <form method="POST" action="{{ url_for('inventory.stock_item_upsert') }}" style="display: flex; gap: 6px; padding: 12px 20px; flex-wrap: wrap; align-items: center;">
+                <input type="hidden" name="category" value="OLD_STOCK">
+                <input type="hidden" name="period" value="{{ period }}">
+                <input type="text" name="name" list="oldStockNames" placeholder="Item name" required class="o_field_widget" style="flex: 1; min-width: 140px;">
+                <input type="number" step="0.01" name="total_received" placeholder="Received" required class="o_field_widget" style="width: 90px;">
+                <input type="number" step="0.01" name="total_issued" placeholder="Issued" required class="o_field_widget" style="width: 90px;">
+                <button type="submit" class="o_icon_btn o_icon_btn_save" title="Add Old Stock Item" aria-label="Add Old Stock Item"><i data-lucide="save"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Technician Issuance -->
+    <div class="o_list_view">
+        <div class="o_list_header" style="background: var(--odoo-primary-soft); padding: 15px 20px; border-radius: 8px 8px 0 0; border-bottom: 2px solid var(--odoo-primary-light); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <h3 style="margin: 0; color: var(--odoo-primary-dark);"><i data-lucide="user-check" class="lucide-icon"></i> Technician Issuance</h3>
+            <form method="GET" style="display: flex; gap: 8px; align-items: center;">
+                <input type="hidden" name="period" value="{{ period }}">
+                <label style="font-size: 12px; color: var(--odoo-text-muted);">Date:</label>
+                <input type="date" name="issue_date" value="{{ issue_date.isoformat() }}" class="o_field_widget" onchange="this.form.submit()">
+            </form>
+        </div>
+        <p style="color: var(--odoo-text-light); font-size: 12px; padding: 0 20px; margin: 10px 0;">
+            Total accessory units issued to each technician on the selected date. This list always reflects the live Technician roster.
+        </p>
+        <table class="o_list_table">
+            <thead><tr><th>Technician</th><th>Qty Issued</th><th></th></tr></thead>
+            <tbody>
+                {% for tech in technicians %}
+                <tr class="o_list_record">
+                    <form method="POST" action="{{ url_for('inventory.stock_issuance_upsert') }}">
+                    <input type="hidden" name="technician_id" value="{{ tech.id }}">
+                    <input type="hidden" name="issue_date" value="{{ issue_date.isoformat() }}">
+                    <td><strong>{{ tech.name }}</strong>{% if tech.city %} <span style="color: var(--odoo-text-light); font-size: 12px;">({{ tech.city }})</span>{% endif %}</td>
+                    <td><input type="number" step="0.01" name="quantity" value="{{ issuances[tech.id].quantity if tech.id in issuances else '' }}" class="o_field_widget" style="width: 90px;"></td>
+                    <td><button type="submit" class="o_icon_btn o_icon_btn_save" title="Update {{ tech.name }} Issuance" aria-label="Update {{ tech.name }} Issuance"><i data-lucide="save"></i></button></td>
+                    </form>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" style="text-align: center; color: var(--odoo-text-light);">No active technicians found</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    /* The ticket search. Five fields on one row, wrapping to fewer columns
+       on a narrow screen - a complaint is looked up by whichever detail the
+       caller happens to give, so no field is more prominent than the rest. */
+    .c_search {
+        background: #ffffff;
+        border: 1px solid var(--odoo-border);
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin-top: 22px;
+    }
+    .c_search_head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--odoo-primary-dark);
+        margin-bottom: 14px;
+    }
+    .c_search_head .lucide-icon { width: 14px; height: 14px; }
+    .c_search_grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px 16px;
+        align-items: end;
+    }
+    .c_search_actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 14px;
+        flex-wrap: wrap;
+    }
+    .c_search_hit {
+        font-size: 12px;
+        color: var(--odoo-text-light);
+        margin-left: auto;
+    }
+    @media (max-width: 1100px) { .c_search_grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 700px)  { .c_search_grid { grid-template-columns: 1fr; } }
+
+    .c_pager {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 16px;
+        font-size: 12px;
+        color: var(--odoo-text-light);
+    }
+</style>
+
+<div class="o_container_fluid">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="o_page_title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="headphones" style="color: var(--odoo-primary);"></i> Customer Complaint Management
+            </h1>
+            <p style="color: var(--odoo-text-light); margin: 5px 0 0 0; font-size: 14px;">
+                Track customer inquiries, technical issues, service tickets, and resolution SLAs
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            {# Same 120-second loop the admin dashboards run, pointed at the
+               complaint endpoint. Administrators and Complaint Managers poll
+               the same URL, so their boards stay in step with each other and
+               with the raiser's own wallboard. #}
+            {% set sync_endpoint = url_for('complaint.api_sync') %}
+            {% include '_live_sync.html' %}
+            <a href="{{ url_for('complaint.new') }}" class="o_button pastel-btn-primary"><i data-lucide="plus-circle"></i> Log Complaint Ticket</a>
+        </div>
+    </div>
+
+    {# Overview cards. This page is already gated to admin/complaint_manager,
+       so every card is a filter link for everyone who can see it - a count
+       nobody can open is a dead end. Each card carries the current search
+       with it, so filtering by status does not throw away what was typed. #}
+    <div class="o_kanban_stats">
+        <a href="{{ url_for('complaint.dashboard', **query_state) }}"
+            class="o_stat_card o_stat_blue {% if not status and not severity %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="ticket"></i> Total Tickets</span>
+            <div class="o_stat_value" data-sync="c_total">{{ sync.c_total }}</div>
+            <div class="o_stat_hint">all complaint tickets</div>
+        </a>
+
+        <a href="{{ url_for('complaint.dashboard', status='OPEN', **query_state) }}"
+            class="o_stat_card o_stat_lilac {% if status == 'OPEN' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="alert-circle"></i> Open Complaints</span>
+            <div class="o_stat_value" data-sync="c_open">{{ sync.c_open }}</div>
+            <div class="o_stat_hint">not yet picked up</div>
+        </a>
+
+        <a href="{{ url_for('complaint.dashboard', status='IN_PROGRESS', **query_state) }}"
+            class="o_stat_card o_stat_sky {% if status == 'IN_PROGRESS' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="loader"></i> In Progress</span>
+            <div class="o_stat_value" data-sync="c_in_progress">{{ sync.c_in_progress }}</div>
+            <div class="o_stat_hint">being worked on</div>
+        </a>
+
+        <a href="{{ url_for('complaint.dashboard', status='RESOLVED', **query_state) }}"
+            class="o_stat_card o_stat_green {% if status == 'RESOLVED' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="check-circle-2"></i> Resolved</span>
+            <div class="o_stat_value" data-sync="c_resolved">{{ sync.c_resolved }}</div>
+            <div class="o_stat_hint">closed out</div>
+        </a>
+
+        <a href="{{ url_for('complaint.dashboard', severity='CRITICAL', **query_state) }}"
+            class="o_stat_card o_stat_rose {% if severity == 'CRITICAL' %}is_active{% endif %}">
+            <span class="o_stat_label"><i data-lucide="alert-triangle"></i> Critical Severity</span>
+            <div class="o_stat_value" data-sync="c_critical">{{ sync.c_critical }}</div>
+            <div class="o_stat_hint">needs attention first</div>
+        </a>
+    </div>
+
+    <!-- Ticket search -->
+    <form class="c_search" method="GET" action="{{ url_for('complaint.dashboard') }}">
+        <div class="c_search_head">
+            <i data-lucide="search" class="lucide-icon"></i> FIND A TICKET
+        </div>
+
+        {# The status/severity filter the board is under travels with the
+           search, so searching from "Open" stays inside "Open". #}
+        {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+        {% if severity %}<input type="hidden" name="severity" value="{{ severity }}">{% endif %}
+
+        <div class="c_search_grid">
+            <div>
+                <label class="o_field_label" for="searchTicketNo">TICKET NUMBER</label>
+                <input type="text" id="searchTicketNo" name="ticket_no" class="o_field_widget"
+                       value="{{ query_state.ticket_no }}" placeholder="CMP-2026-0001" autocomplete="off">
+            </div>
+            <div>
+                <label class="o_field_label" for="searchRegNo">REGISTRATION NUMBER</label>
+                <input type="text" id="searchRegNo" name="reg_no" class="o_field_widget"
+                       value="{{ query_state.reg_no }}" placeholder="ABC-123" autocomplete="off">
+            </div>
+            <div>
+                <label class="o_field_label" for="searchContact">CONTACT NUMBER</label>
+                <input type="text" id="searchContact" name="contact" class="o_field_widget"
+                       value="{{ query_state.contact }}" placeholder="0300-1234567" autocomplete="off">
+            </div>
+            <div>
+                <label class="o_field_label" for="searchDateFrom">LOGGED FROM</label>
+                <input type="date" id="searchDateFrom" name="date_from" class="o_field_widget"
+                       value="{{ query_state.date_from }}">
+            </div>
+            <div>
+                <label class="o_field_label" for="searchDateTo">LOGGED TO</label>
+                <input type="date" id="searchDateTo" name="date_to" class="o_field_widget"
+                       value="{{ query_state.date_to }}">
+            </div>
+        </div>
+
+        <div class="c_search_actions">
+            <button type="submit" class="o_button pastel-btn-primary"><i data-lucide="search"></i> Search</button>
+            {% if is_searching %}
+            <a href="{{ url_for('complaint.dashboard', status=status or none, severity=severity or none) }}"
+               class="o_button o_button_secondary"><i data-lucide="x"></i> Clear</a>
+            {% endif %}
+            <span class="c_search_hit">
+                {% if is_searching %}{{ total }} matched{% else %}{{ total }} on this board{% endif %}
+            </span>
+        </div>
+    </form>
+
+    <!-- Ticket list -->
+    <div class="o_list_view" style="margin-top: 20px;">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr>
+                    <th>TICKET #</th>
+                    <th>LOGGED</th>
+                    <th>CUSTOMER NAME</th>
+                    <th>CONTACT</th>
+                    <th>REG NO</th>
+                    <th>TYPE</th>
+                    <th>TECHNICIAN</th>
+                    <th>SEVERITY</th>
+                    <th>STATUS</th>
+                    <th class="o_action_col" style="text-align: right;">ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in complaints %}
+                <tr class="o_list_record">
+                    <td><strong><a href="{{ url_for('complaint.detail', complaint_id=c.id) }}">{{ c.ticket_no }}</a></strong></td>
+                    <td>{{ c.created_at.strftime('%d %b %Y %H:%M') if c.created_at else '-' }}</td>
+                    <td>{{ c.customer_name }}</td>
+                    <td>{{ c.customer_contact }}</td>
+                    <td>{{ c.reg_no or '-' }}</td>
+                    <td>{{ c.complaint_type.replace('_', ' ') }}</td>
+                    <td>{{ c.technician.name if c.technician else 'Unassigned' }}</td>
+                    <td><span class="o_badge {% if c.severity == 'CRITICAL' %}o_badge_danger{% elif c.severity == 'HIGH' %}o_badge_warning{% else %}o_badge_info{% endif %}">{{ c.severity }}</span></td>
+                    <td><span class="o_badge {% if c.status == 'RESOLVED' %}o_badge_success{% elif c.status == 'IN_PROGRESS' %}o_badge_info{% else %}o_badge_warning{% endif %}" data-sync="ticket_{{ c.id }}_status">{{ c.status }}</span></td>
+                    <td class="o_action_col" style="text-align: right;">
+                        <div class="o_action_btns">
+                            <a href="{{ url_for('complaint.detail', complaint_id=c.id) }}" class="o_icon_btn o_icon_btn_view" title="View Ticket" aria-label="View Ticket"><i data-lucide="eye"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" style="text-align: center; color: var(--odoo-text-light);">
+                    {% if is_searching %}No ticket matches that search{% else %}No customer complaints found{% endif %}
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <div class="c_pager">
+        {% if page > 1 %}
+        <a class="o_button o_button_secondary" href="{{ url_for('complaint.dashboard', page=page - 1, status=status or none, severity=severity or none, **query_state) }}">
+            <i data-lucide="chevron-left"></i> Previous
+        </a>
+        {% endif %}
+        <span>Page {{ page }} of {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a class="o_button o_button_secondary" href="{{ url_for('complaint.dashboard', page=page + 1, status=status or none, severity=severity or none, **query_state) }}">
+            Next <i data-lucide="chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

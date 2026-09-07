@@ -1,0 +1,9 @@
+# Shell scripts are executed by the Linux containers. Committed with CRLF they
+# fail at startup with a bad-interpreter error, so normalise them to LF no
+# matter which platform they were edited on.
+*.sh text eol=lf
+deployment/docker-entrypoint.sh text eol=lf
+
+# The seeded database is binary; git must not try to normalise line endings
+# inside it.
+*.db binary

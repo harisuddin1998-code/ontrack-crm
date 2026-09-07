@@ -1,0 +1,89 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-plus-circle" style="color: var(--odoo-primary);"></i> New Purchase Order</h1>
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Purchase Order Details</h2>
+            <p class="o_form_subtitle">Fill in the customer and vehicle information</p>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="{{ url_for('sales.new_po') }}">
+                {{ form.hidden_tag() }}
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.owner_name.label }}</label>
+                        {{ form.owner_name(class="o_field_widget", placeholder="Enter customer name") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.owner_contact.label }}</label>
+                        {{ form.owner_contact(class="o_field_widget", placeholder="Enter contact number") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.contact_person_driver.label }}</label>
+                        {{ form.contact_person_driver(class="o_field_widget", placeholder="Enter driver name") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.reg_no.label }}</label>
+                        {{ form.reg_no(class="o_field_widget", placeholder="Enter registration number") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.vehicle_make.label }}</label>
+                        {{ form.vehicle_make(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.vehicle_model.label }}</label>
+                        {{ form.vehicle_model(class="o_field_widget") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.sales_person_id.label }}</label>
+                        {{ form.sales_person_id(class="o_field_widget") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.vehicle_availability_location.label }}</label>
+                        {{ form.vehicle_availability_location(class="o_field_widget", placeholder="Where is the vehicle available for installation?") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.existing_customer_name.label }}</label>
+                        {{ form.existing_customer_name(class="o_field_widget", placeholder="Enter existing customer name (if transfer)") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.existing_vehicle_number.label }}</label>
+                        {{ form.existing_vehicle_number(class="o_field_widget", placeholder="Enter existing vehicle number (if transfer)") }}
+                    </div>
+                </div>
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.rates.label }}</label>
+                        {{ form.rates(class="o_field_widget", placeholder="0.00") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.amc.label }}</label>
+                        {{ form.amc(class="o_field_widget", placeholder="0.00") }}
+                    </div>
+                </div>
+                {# Inner pages and forms show the label next to the icon -
+                   only dashboards and wallboards go icon-only. #}
+                <div class="o_action_bar">
+                    <a href="{{ url_for('sales.dashboard') }}" class="o_button o_button_secondary">
+                        <i data-lucide="x"></i> Cancel
+                    </a>
+                    <button type="submit" class="o_button">
+                        <i data-lucide="save"></i> Create PO
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% include '_make_model_filter.html' %}
+{% endblock %}

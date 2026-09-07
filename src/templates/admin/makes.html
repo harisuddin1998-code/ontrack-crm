@@ -1,0 +1,33 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title"><i class="fas fa-car" style="color: var(--odoo-primary);"></i> Vehicle Makes</h1>
+    <div class="o_search_bar">
+        <a href="{{ url_for('admin.make_add') }}" class="o_icon_btn o_icon_btn_add o_icon_btn_lg" title="Add Make" aria-label="Add Make"><i class="fas fa-plus"></i></a>
+    </div>
+    <div class="o_list_view">
+        <table class="o_list_table">
+            <thead class="o_list_header">
+                <tr><th>Name</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for make in makes %}
+                <tr class="o_list_record">
+                    <td>{{ make.name }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.make_edit', id=make.id) }}" class="o_icon_btn o_icon_btn_edit" title="Edit Make" aria-label="Edit Make"><i class="fas fa-pencil-alt"></i></a>
+                        <form method="POST" action="{{ url_for('admin.make_delete', id=make.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="o_icon_btn o_icon_btn_delete" title="Delete Make" aria-label="Delete Make"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="2" style="text-align: center; color: var(--odoo-text-light);">No makes found</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

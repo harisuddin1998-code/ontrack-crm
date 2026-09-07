@@ -1,0 +1,83 @@
+<!-- src/templates/admin/technician_bike_form.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="o_container_fluid">
+    <h1 class="o_page_title">
+        <i class="fas fa-motorcycle" style="color: var(--odoo-primary);"></i>
+        {{ title }}
+    </h1>
+    
+    <div class="o_form_view">
+        <div class="o_form_header">
+            <h2 class="o_form_title">Technician Bike Details</h2>
+            <p class="o_form_subtitle">{% if bike %}Edit{% else %}Add{% endif %} bike assignment</p>
+        </div>
+        <div class="o_form_body">
+            <form method="POST" action="">
+                {{ form.hidden_tag() }}
+                
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.technician_id.label }}</label>
+                        {{ form.technician_id(class="o_field_widget") }}
+                        {% if form.technician_id.errors %}
+                            <small style="color: #ff6b6b;">{{ form.technician_id.errors[0] }}</small>
+                        {% endif %}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.bike_registration.label }}</label>
+                        {{ form.bike_registration(class="o_field_widget", placeholder="e.g., ABC-123") }}
+                        {% if form.bike_registration.errors %}
+                            <small style="color: #ff6b6b;">{{ form.bike_registration.errors[0] }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="o_form_group">
+                    <div class="o_field_group" style="grid-column: span 2;">
+                        <label class="o_field_label">{{ form.imei.label }}</label>
+                        {{ form.imei(class="o_field_widget", placeholder="15-digit IMEI number") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px; display: block; margin-top: 4px;">
+                            The tracker device IMEI installed on this bike
+                        </small>
+                        {% if form.imei.errors %}
+                            <small style="color: #ff6b6b;">{{ form.imei.errors[0] }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="o_form_group">
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.bike_model.label }}</label>
+                        {{ form.bike_model(class="o_field_widget", placeholder="e.g., Honda CD-70") }}
+                    </div>
+                    <div class="o_field_group">
+                        <label class="o_field_label">{{ form.fuel_efficiency.label }}</label>
+                        {{ form.fuel_efficiency(class="o_field_widget", placeholder="e.g., 45") }}
+                        <small style="color: var(--odoo-text-light); font-size: 10px; display: block; margin-top: 4px;">
+                            Kilometers per liter
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="o_form_group">
+                    <div class="o_field_group" style="grid-column: span 2;">
+                        <label class="o_field_label">{{ form.is_active.label }}</label>
+                        {{ form.is_active(class="o_field_widget") }}
+                    </div>
+                </div>
+                
+                <div class="o_action_bar">
+                    <a href="{{ url_for('admin.technician_bikes') }}" class="o_button o_button_secondary">
+                        <i class="fas fa-arrow-left"></i> Cancel
+                    </a>
+                    <button type="submit" class="o_icon_btn o_icon_btn_save o_icon_btn_lg" title="{% if bike %}Update Bike{% else %}Add Bike{% endif %}" aria-label="{% if bike %}Update Bike{% else %}Add Bike{% endif %}">
+                        <i class="fas fa-floppy-disk"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -68,6 +68,10 @@ services:
       - INTERNAL_DB_USER=${INTERNAL_DB_USER:-}
       - INTERNAL_DB_PASSWORD=${INTERNAL_DB_PASSWORD:-}
       - INTERNAL_DB_NAME=${INTERNAL_DB_NAME:-SJ_MIS}
+      # Empty unless .env names one; the service then tries the drivers
+      # it knows. Braces cannot carry a default here - compose would
+      # read them as its own substitution syntax.
+      - INTERNAL_DB_DRIVER=${INTERNAL_DB_DRIVER:-}
       - CACHE_REDIS_URL=redis://redis:6379/2
     ports:
       # Loopback only; the host nginx proxies to 127.0.0.1:6012.
@@ -115,6 +119,10 @@ services:
       - INTERNAL_DB_USER=${INTERNAL_DB_USER:-}
       - INTERNAL_DB_PASSWORD=${INTERNAL_DB_PASSWORD:-}
       - INTERNAL_DB_NAME=${INTERNAL_DB_NAME:-SJ_MIS}
+      # Empty unless .env names one; the service then tries the drivers
+      # it knows. Braces cannot carry a default here - compose would
+      # read them as its own substitution syntax.
+      - INTERNAL_DB_DRIVER=${INTERNAL_DB_DRIVER:-}
     volumes:
       - ./src:/app/src
       - ./uploads:/app/uploads
@@ -158,6 +166,10 @@ services:
       - INTERNAL_DB_USER=${INTERNAL_DB_USER:-}
       - INTERNAL_DB_PASSWORD=${INTERNAL_DB_PASSWORD:-}
       - INTERNAL_DB_NAME=${INTERNAL_DB_NAME:-SJ_MIS}
+      # Empty unless .env names one; the service then tries the drivers
+      # it knows. Braces cannot carry a default here - compose would
+      # read them as its own substitution syntax.
+      - INTERNAL_DB_DRIVER=${INTERNAL_DB_DRIVER:-}
     depends_on:
       - redis
       - celery

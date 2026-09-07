@@ -18,6 +18,21 @@ RUN apt-get update && apt-get install -y \
     unixodbc-dev \
     curl \
     wget \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# The Microsoft SQL Server ODBC driver, for the SJ_MIS sync.
+#
+# unixodbc above is only the driver manager - it ships no driver for SQL
+# Server, so without this every pyodbc.connect fails with "Can't open lib
+# 'ODBC Driver 17 for SQL Server' : file not found", however the
+# connection is configured.
+RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+      | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
+    && echo "deb [arch=amd64,armhf,arm64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" \
+      > /etc/apt/sources.list.d/mssql-release.list \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql17 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install wkhtmltopdf

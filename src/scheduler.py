@@ -188,7 +188,12 @@ def run_non_reporting_sync(app):
             from src.services.db_sync_service import DBSyncService
             service = DBSyncService()
             result = service.sync_non_reporting_vehicles()
-            logger.info(f"[SYNC] Non-reporting sync: New {result.get('new', 0)}, Updated {result.get('updated', 0)}")
+            if result.get('ok', True):
+                logger.info(f"[SYNC] Non-reporting sync: New {result.get('new', 0)}, Updated {result.get('updated', 0)}")
+            else:
+                # Logged at error so it stands out in a log that is otherwise
+                # a wall of successful five-minute ticks.
+                logger.error(f"[SYNC] Non-reporting sync FAILED: {result.get('error')}")
         except Exception as e:
             logger.error(f"[ERROR] Non-reporting sync error: {e}")
 

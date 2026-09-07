@@ -704,7 +704,13 @@ def non_reporting_dashboard():
         try:
             sync_res = nr_service.sync_non_reporting_vehicles()
             if do_sync:
-                flash(f'Live Data Sync Complete! New: {sync_res.get("new", 0)}, Updated: {sync_res.get("updated", 0)}, Removed (reconnected): {sync_res.get("removed", 0)}.', 'success')
+                if sync_res.get('ok', True):
+                    flash(f'Live Data Sync Complete! New: {sync_res.get("new", 0)}, Updated: {sync_res.get("updated", 0)}, Removed (reconnected): {sync_res.get("removed", 0)}.', 'success')
+                else:
+                    # Said plainly, because the list on screen is now stale
+                    # rather than wrong - and the difference matters to whoever
+                    # is about to work from it.
+                    flash(f'Sync failed: {sync_res.get("error")} Showing the last data held.', 'danger')
         except Exception as e:
             logger.error(f"Error pulling live data: {e}")
             flash(f'Warning: Unable to sync live data ({e}). Showing cached data.', 'warning')
@@ -1109,7 +1115,10 @@ def non_reporting_sync():
     
     try:
         result = nr_service.sync_non_reporting_vehicles()
-        flash(f'✅ Live SJ_MIS DB Sync complete! New vehicles: {result["new"]}, Updated: {result["updated"]}', 'success')
+        if result.get('ok', True):
+            flash(f'✅ Live SJ_MIS DB Sync complete! New vehicles: {result["new"]}, Updated: {result["updated"]}', 'success')
+        else:
+            flash(f'❌ Sync failed: {result.get("error")}', 'danger')
     except Exception as e:
         flash(f'❌ Sync error: {str(e)}', 'danger')
     

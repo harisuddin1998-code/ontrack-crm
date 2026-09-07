@@ -60,14 +60,28 @@ class DBSyncService:
         self.config = config
     
     def get_internal_connection(self):
-        """Get connection to internal SQL Server database"""
+        """Get connection to internal SQL Server database, or None.
+
+        The configured driver is tried first and the known names after it.
+        INTERNAL_DB_DRIVER used to be ignored entirely in favour of the
+        hardcoded list, so setting it in .env changed nothing and there was
+        no way to name a driver this list had not heard of.
+        """
         try:
-            drivers = [
+            configured = (self.config.INTERNAL_DB_DRIVER or '').strip()
+            if configured and not configured.startswith('{'):
+                configured = '{%s}' % configured
+            drivers = [d for d in [
+                configured,
+                '{ODBC Driver 18 for SQL Server}',
                 '{ODBC Driver 17 for SQL Server}',
                 '{ODBC Driver 13 for SQL Server}',
                 '{ODBC Driver 11 for SQL Server}',
-                '{SQL Server}'
-            ]
+                '{SQL Server}',
+            ] if d]
+            seen = set()
+            drivers = [d for d in drivers if not (d in seen or seen.add(d))]
+            last_error = None
             for driver in drivers:
                 try:
                     conn_str = (
@@ -81,22 +95,29 @@ class DBSyncService:
                     logger.info(f"Connected to internal DB using driver: {driver}")
                     return conn
                 except pyodbc.Error as e:
-                    if "ODBC Driver" in str(e):
-                        continue
-                    raise e
-            logger.error("No suitable ODBC driver found for internal DB")
+                    last_error = e
+                    continue
+            logger.error(
+                "Could not connect to the internal DB with any of %s. Last error: %s",
+                drivers, last_error)
             return None
         except Exception as e:
             logger.error(f"Internal DB connection error: {e}")
             return None
     
-    def sync_non_reporting_vehicles(self) -> Dict[str, int]:
+    def sync_non_reporting_vehicles(self) -> Dict[str, Any]:
         """Sync non-reporting vehicles from internal database.
         
         - Only includes vehicles with a confirmed dt_tracker that is 24h+ stale.
         - Filters out 'Removed' IMEIs.
         - Auto-removes vehicles that have reported back (dt_tracker within 24h).
         - All data is read-only from SJ_MIS; state is maintained in local DB.
+
+        Returns 'ok': False and leaves the table untouched when SJ_MIS cannot
+        be reached. It used to substitute four hardcoded placeholder vehicles
+        instead, commit them, and notify the REDO team about each - so an
+        unreachable database was indistinguishable from a working sync, and
+        the team was sent after vehicles that do not exist.
         """
         new_count = 0
         updated_count = 0
@@ -108,12 +129,18 @@ class DBSyncService:
         newly_silent = []
         
         try:
-            # Fetch confirmed non-reporting vehicles from internal DB or fallback
             vehicles = self._fetch_non_reporting_from_internal()
-            
-            if not vehicles:
-                vehicles = self._get_fallback_non_reporting_vehicles()
-            
+
+            # None means SJ_MIS could not be read. Nothing is written on a
+            # failed read: the stored list stays as it was, which is the last
+            # thing known to be true, and the caller is told the sync failed.
+            if vehicles is None:
+                message = ('The SJ_MIS database could not be reached, so the '
+                           'non-reporting list was left unchanged.')
+                logger.error(message)
+                return {'ok': False, 'error': message,
+                        'new': 0, 'updated': 0, 'removed': 0}
+
             # Build a set of reg_nos from the fresh sync for reconnection detection
             synced_reg_nos = set()
             
@@ -229,14 +256,23 @@ class DBSyncService:
         except Exception as e:
             logger.error(f"Error syncing non-reporting vehicles: {e}")
             db.session.rollback()
+            return {'ok': False, 'error': str(e),
+                    'new': 0, 'updated': 0, 'removed': 0}
         
-        return {'new': new_count, 'updated': updated_count, 'removed': removed_count}
+        return {'ok': True, 'error': None, 'new': new_count,
+                'updated': updated_count, 'removed': removed_count}
     
-    def _fetch_non_reporting_from_internal(self) -> List[Dict[str, Any]]:
-        """Fetch non-reporting vehicles from internal database"""
+    def _fetch_non_reporting_from_internal(self) -> Optional[List[Dict[str, Any]]]:
+        """The confirmed non-reporting vehicles, or None if SJ_MIS is unreachable.
+
+        None and [] mean different things and the caller acts on the
+        difference: None is "the source could not be read, do not touch the
+        table", [] is "the source was read and every vehicle is reporting",
+        which legitimately empties the list.
+        """
         conn = self.get_internal_connection()
         if not conn:
-            return self._get_fallback_non_reporting_vehicles()
+            return None
         
         try:
             cursor = conn.cursor()
@@ -353,7 +389,10 @@ class DBSyncService:
 
 
             conn.close()
-            return vehicles if vehicles else self._get_fallback_non_reporting_vehicles()
+            # An empty result is an answer - every vehicle is reporting - and
+            # is returned as one. It used to be replaced with placeholder
+            # vehicles, which turned good news into four invented callouts.
+            return vehicles
             
         except Exception as e:
             logger.error(f"Error fetching non-reporting vehicles: {e}")
@@ -361,7 +400,7 @@ class DBSyncService:
                 conn.close()
             except Exception:
                 pass
-            return self._get_fallback_non_reporting_vehicles()
+            return None
 
     def search_vehicles_live(self, query: str, limit: int = 15) -> List[Dict[str, Any]]:
         """Live search across ALL vehicles on the SJ_MIS server - reporting
@@ -459,104 +498,6 @@ class DBSyncService:
                 pass
             return []
 
-    def _get_fallback_non_reporting_vehicles(self) -> List[Dict[str, Any]]:
-        """Return fallback realistic non-reporting vehicles when external DB is offline"""
-        now = datetime.now()
-        return [
-            {
-                'registration_no': 'LEB-2021-9981',
-                'customer_name': 'Pak National Logistics',
-                'customer_contact': '0300-8451122',
-                'emergency_mobile': '0321-4455667',
-                'emergency_name': 'Tariq Mahmood (Transport Manager)',
-                'res_phone': '042-35711223',
-                'office_phone': '042-35899881',
-                'engine_no': '1NZ-449812',
-                'chassis_no': 'NZE140-9011823',
-                'unit_location': 'Dashboard Main Wiring Harness',
-                'imei_no': '862292056620214',
-                'sim_no': '03001234567',
-                'last_reporting_time': now - timedelta(days=2, hours=5),
-                'dt_tracker': now - timedelta(days=2, hours=5),
-                'dt_server': now - timedelta(days=2, hours=5),
-                'lat': '31.5204',
-                'lng': '74.3587',
-                'speed': '0',
-                'make': 'TOYOTA',
-                'model': 'COROLLA',
-                'city': 'LAHORE'
-            },
-            {
-                'registration_no': 'ICT-2023-4510',
-                'customer_name': 'Atlas Honda Distribution',
-                'customer_contact': '0312-9988776',
-                'emergency_mobile': '0333-1122334',
-                'emergency_name': 'Shahid Khan',
-                'res_phone': '051-4433221',
-                'office_phone': '051-2233445',
-                'engine_no': '2TR-881230',
-                'chassis_no': 'TKN130-7712399',
-                'unit_location': 'Under Driver Seat Column',
-                'imei_no': '861120049982143',
-                'sim_no': '03129988776',
-                'last_reporting_time': now - timedelta(days=5, hours=12),
-                'dt_tracker': now - timedelta(days=5, hours=12),
-                'dt_server': now - timedelta(days=5, hours=12),
-                'lat': '33.6844',
-                'lng': '73.0479',
-                'speed': '0',
-                'make': 'HONDA',
-                'model': 'CIVIC',
-                'city': 'ISLAMABAD'
-            },
-            {
-                'registration_no': 'KHI-2022-8871',
-                'customer_name': 'Habib Metro Services',
-                'customer_contact': '0321-7766554',
-                'emergency_mobile': '0301-3344556',
-                'emergency_name': 'Kamran Akmal',
-                'res_phone': '021-34567890',
-                'office_phone': '021-34998877',
-                'engine_no': 'K10B-334120',
-                'chassis_no': 'MH3-99812300',
-                'unit_location': 'Behind Glovebox Panel',
-                'imei_no': '869910023412987',
-                'sim_no': '03217766554',
-                'last_reporting_time': now - timedelta(days=12, hours=3),
-                'dt_tracker': now - timedelta(days=12, hours=3),
-                'dt_server': now - timedelta(days=12, hours=3),
-                'lat': '24.8607',
-                'lng': '67.0011',
-                'speed': '0',
-                'make': 'SUZUKI',
-                'model': 'CULTUS',
-                'city': 'KARACHI'
-            },
-            {
-                'registration_no': 'PEW-2020-3321',
-                'customer_name': 'Khyber Cargo Express',
-                'customer_contact': '0345-5544332',
-                'emergency_mobile': '0334-7788990',
-                'emergency_name': 'Asad Ullah',
-                'res_phone': '091-5844332',
-                'office_phone': '091-5877665',
-                'engine_no': '4JJ1-998412',
-                'chassis_no': 'NPR75-1123899',
-                'unit_location': 'Engine Compartment Fuse Relay',
-                'imei_no': '863340055112876',
-                'sim_no': '03455544332',
-                'last_reporting_time': now - timedelta(days=18, hours=8),
-                'dt_tracker': now - timedelta(days=18, hours=8),
-                'dt_server': now - timedelta(days=18, hours=8),
-                'lat': '34.0151',
-                'lng': '71.5249',
-                'speed': '0',
-                'make': 'ISUZU',
-                'model': 'D-MAX',
-                'city': 'PESHAWAR'
-            }
-        ]
-    
     def fetch_redo_data_from_sj_mis(self, page_number: int = 1, rows_per_page: int = 100) -> List[Dict[str, Any]]:
         """
         Fetch REDO data from SJ_MIS database using the provided SQL query

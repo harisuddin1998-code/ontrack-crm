@@ -222,6 +222,15 @@ def test_nr_team_role_and_activities_visibility(client):
     # 8. Test DB Sync Refresh with redirect back to Activities Wallboard
     res_sync = client.get('/redo/non-reporting/sync?next=/redo/dashboard', follow_redirects=True)
     assert res_sync.status_code == 200
-    assert b'Live SJ_MIS DB Sync complete' in res_sync.data
+    # Either outcome is correct, and which one happens is a fact about the
+    # machine rather than the code: SJ_MIS sits on a private address that the
+    # office network can reach and a CI runner cannot. What must hold
+    # everywhere is that the user is told which of the two it was - the sync
+    # never finishes silently, and never claims a success it did not have.
+    # This asserted the success text alone until the sync stopped inventing
+    # four vehicles whenever the database was unreachable, which is what used
+    # to make that text appear on a runner with no route to it at all.
+    assert (b'Live SJ_MIS DB Sync complete' in res_sync.data
+            or b'Sync failed' in res_sync.data)
     assert b'REDO &amp; Rework Activities Wallboard' in res_sync.data
 

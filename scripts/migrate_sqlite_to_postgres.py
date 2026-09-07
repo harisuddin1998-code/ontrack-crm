@@ -74,6 +74,45 @@ def _plan(source: Engine) -> List:
     return [t for t in db.metadata.sorted_tables if t.name in present]
 
 
+def _select(tables: List, wanted: str) -> List:
+    """Narrow the plan to the named tables, keeping foreign-key order.
+
+    A subset is how a single area is moved into a database that is already
+    live - the annual recovery sheets, say, into a server whose users, POs and
+    complaints must not be touched. Copying everything into a running system
+    duplicates all of it.
+    """
+    names = [n.strip() for n in wanted.split(",") if n.strip()]
+    by_name = {t.name: t for t in tables}
+
+    unknown = [n for n in names if n not in by_name]
+    if unknown:
+        sys.exit("Not in the source database: " + ", ".join(unknown)
+                 + ". Available: " + ", ".join(sorted(by_name)))
+
+    chosen = [t for t in tables if t.name in set(names)]
+
+    # A table whose parent is left behind will fail on the foreign key, or
+    # worse, land pointing at whatever row already holds that id on the
+    # target. Named here rather than discovered halfway through a copy.
+    picked = {t.name for t in chosen}
+    dangling = []
+    for table in chosen:
+        for fk in table.foreign_keys:
+            parent = fk.column.table.name
+            if parent not in picked and parent != table.name:
+                dangling.append("%s -> %s" % (table.name, parent))
+    if dangling:
+        print("WARNING: these reference tables that are not being copied:")
+        for d in sorted(set(dangling)):
+            print("  %s" % d)
+        print("The rows will only be correct if the target already holds the")
+        print("matching parent rows with the same ids.")
+        print("")
+
+    return chosen
+
+
 def _count(engine: Engine, table) -> int:
     with engine.connect() as conn:
         return conn.execute(
@@ -135,6 +174,11 @@ def main() -> int:
                     help="SQLite file to read (default: instance/management.db)")
     ap.add_argument("--target", default=None,
                     help="Target URL (default: $DATABASE_URL)")
+    ap.add_argument("--tables", default=None,
+                    help="Comma-separated tables to copy instead of all of "
+                         "them, e.g. the annual recovery sheets on their own. "
+                         "Foreign-key order is kept, and anything referencing "
+                         "a table left behind is reported first.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Report what would be copied and change nothing")
     ap.add_argument("--force", action="store_true",
@@ -151,6 +195,11 @@ def main() -> int:
     tables = _plan(source)
     if not tables:
         sys.exit("No model tables found in %s." % args.source)
+
+    if args.tables:
+        tables = _select(tables, args.tables)
+        if not tables:
+            sys.exit("No tables selected.")
 
     print("source : %s" % args.source)
     print("target : %s" % target.url.render_as_string(hide_password=True))
